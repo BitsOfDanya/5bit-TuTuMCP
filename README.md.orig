@@ -412,3 +412,16 @@ make prod-deploy ENV_FILE=.env.production
 Перед запуском задайте `AUTH_SECRET_KEY`, `AI_SERVICE_TOKEN`, `OPENAI_API_KEY`, домен и immutable
 `IMAGE_TAG`. Подробные build/publish/deploy/backup/rollback инструкции находятся в
 [DEPLOYMENT.md](DEPLOYMENT.md).
+
+## Ограничения прототипа
+
+- текущий backend использует SQLite и рассчитан на один экземпляр;
+- хранится одна текущая принятая поездка на пользователя, без отдельного `trip_id`;
+- Preference Store Trip Rescue пока файловый;
+- доставка одноразового кода через email/SMS не подключена;
+- точность и доступность вариантов зависят от OpenAI и внешнего Tutu MCP;
+- перед публичным использованием необходимы полноценная авторизация доступа к истории,
+  PostgreSQL, централизованные rate limits, мониторинг и внешний secret manager.
+
+Проект является демонстрационным прототипом и не должен собирать данные сторонних аккаунтов или
+использоваться как production booking system без отдельного security review.
