@@ -18,6 +18,16 @@ venv/
 *.sqlite
 *.sqlite3
 
+# Runtime data
+backend/.data/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
 # Coverage
 .coverage
 htmlcov/
