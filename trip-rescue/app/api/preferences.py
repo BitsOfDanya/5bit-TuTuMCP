@@ -25,6 +25,14 @@ from app.preferences.cold_start_service import (
     ColdStartCompletion,
     ColdStartService,
 )
+from app.preferences.group import (
+    GroupPreferenceSummary,
+)
+from app.preferences.group_service import (
+    GroupRerankResult,
+    MissingGroupProfilesError,
+    get_group_preference_service,
+)
 from app.preferences.learner import (
     get_preference_learner,
 )
@@ -87,6 +95,7 @@ class PreferenceRerankItem(
     candidate_id: str
 
     rank_before: int
+
     rank_after: int
 
     preference_score: float
@@ -148,12 +157,47 @@ class ColdStartCompleteRequest(
     replace: bool = False
 
 
+class GroupProfileRequest(
+    BaseModel
+):
+    group_id: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    profile_ids: list[
+        str
+    ] = Field(
+        min_length=2,
+        max_length=20,
+    )
+
+
+class GroupRerankRequest(
+    BaseModel
+):
+    group_id: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    profile_ids: list[
+        str
+    ] = Field(
+        min_length=2,
+        max_length=20,
+    )
+
+    candidates: list[
+        CurrentJourneyInput
+    ] = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+
 # ============================================================
 # Cold Start
-#
-# IMPORTANT:
-# Static routes are declared BEFORE /{profile_id}
-# so FastAPI never interprets "cold-start" as profile_id.
 # ============================================================
 
 
@@ -218,7 +262,113 @@ async def complete_cold_start(
 
 
 # ============================================================
-# Feedback learning
+# Group Preferences
+# ============================================================
+
+
+@router.post(
+    "/group/profile",
+    response_model=(
+        GroupPreferenceSummary
+    ),
+)
+async def group_profile(
+    request: GroupProfileRequest,
+) -> GroupPreferenceSummary:
+    try:
+        service = (
+            get_group_preference_service()
+        )
+
+        return service.build_profile(
+            group_id=(
+                request.group_id
+            ),
+            profile_ids=(
+                request.profile_ids
+            ),
+        )
+
+    except (
+        MissingGroupProfilesError
+    ) as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": (
+                    "One or more preference "
+                    "profiles were not found"
+                ),
+                "missing_profile_ids": (
+                    exc.profile_ids
+                ),
+            },
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/group/rerank",
+    response_model=(
+        GroupRerankResult
+    ),
+)
+async def group_rerank(
+    request: GroupRerankRequest,
+) -> GroupRerankResult:
+    try:
+        journeys = [
+            to_domain_journey(
+                candidate
+            )
+            for candidate
+            in request.candidates
+        ]
+
+        service = (
+            get_group_preference_service()
+        )
+
+        return service.rerank(
+            group_id=(
+                request.group_id
+            ),
+            profile_ids=(
+                request.profile_ids
+            ),
+            journeys=journeys,
+        )
+
+    except (
+        MissingGroupProfilesError
+    ) as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": (
+                    "One or more preference "
+                    "profiles were not found"
+                ),
+                "missing_profile_ids": (
+                    exc.profile_ids
+                ),
+            },
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+
+# ============================================================
+# Behavioural preference learning
 # ============================================================
 
 
@@ -269,9 +419,7 @@ async def preference_feedback(
 
 
 # ============================================================
-# Reranking
-#
-# Keep before /{profile_id} for explicit routing clarity.
+# Individual rerank
 # ============================================================
 
 
@@ -348,7 +496,9 @@ async def rerank_preferences(
 
 
 # ============================================================
-# Profile
+# Individual profile
+#
+# Dynamic routes stay LAST.
 # ============================================================
 
 
