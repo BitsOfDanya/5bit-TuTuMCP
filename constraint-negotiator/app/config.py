@@ -10,9 +10,19 @@ class Settings(BaseSettings):
     app_debug: bool = True
 
     openai_api_key: SecretStr | None = None
-    openai_model: str = "gpt-5.4-mini"
+    openai_model: str = "gpt-5.6-luna"
 
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    agent_system_prompt: str = (
+        "You are a helpful assistant. "
+        "Be concise and accurate."
+    )
+
+    tutu_mcp_url: str = "https://mcp.tutu.ru/mcp"
+
+    cors_origins: str = (
+        "http://localhost:5173,"
+        "http://localhost:3000"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

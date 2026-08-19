@@ -5,11 +5,10 @@ from langgraph.graph import END, START, StateGraph
 from app.ai.parser import TripParser
 from app.graph.state import NegotiatorState
 from app.models.journey import JourneyOption
-from app.models.relaxation import NegotiationResult
 from app.models.trip import TripSpec
 from app.negotiator.solver import ConstraintNegotiator
 from app.search.base import JourneyProvider
-from app.search.mock import MockJourneyProvider
+from app.tutu.provider import TutuMCPJourneyProvider
 
 
 def build_negotiator_graph(
@@ -17,21 +16,23 @@ def build_negotiator_graph(
     provider: JourneyProvider,
     solver: ConstraintNegotiator,
 ):
-
     async def resolve_trip(
         state: NegotiatorState,
     ) -> dict:
-
         existing = state.get("trip_spec")
 
         if existing is not None:
+            trip = TripSpec.model_validate(existing)
+
             return {
-                "trip_spec": TripSpec.model_validate(
-                    existing
-                ).model_dump(mode="json")
+                "trip_spec": trip.model_dump(
+                    mode="json"
+                )
             }
 
-        request_text = state.get("request_text")
+        request_text = state.get(
+            "request_text"
+        )
 
         if not request_text:
             raise ValueError(
@@ -43,7 +44,9 @@ def build_negotiator_graph(
         )
 
         reference_date = (
-            date.fromisoformat(reference_date_raw)
+            date.fromisoformat(
+                reference_date_raw
+            )
             if reference_date_raw
             else date.today()
         )
@@ -62,18 +65,21 @@ def build_negotiator_graph(
     async def search_candidates(
         state: NegotiatorState,
     ) -> dict:
-
         trip = TripSpec.model_validate(
             state["trip_spec"]
         )
 
-        journeys = await provider.search_candidates(
-            trip
+        journeys = (
+            await provider.search_candidates(
+                trip
+            )
         )
 
         return {
             "candidate_journeys": [
-                journey.model_dump(mode="json")
+                journey.model_dump(
+                    mode="json"
+                )
                 for journey in journeys
             ]
         }
@@ -81,13 +87,14 @@ def build_negotiator_graph(
     def negotiate(
         state: NegotiatorState,
     ) -> dict:
-
         trip = TripSpec.model_validate(
             state["trip_spec"]
         )
 
         journeys = [
-            JourneyOption.model_validate(item)
+            JourneyOption.model_validate(
+                item
+            )
             for item in state[
                 "candidate_journeys"
             ]
@@ -147,11 +154,19 @@ def build_negotiator_graph(
 
 
 trip_parser = TripParser()
-journey_provider = MockJourneyProvider()
-constraint_negotiator = ConstraintNegotiator()
 
-negotiator_graph = build_negotiator_graph(
-    parser=trip_parser,
-    provider=journey_provider,
-    solver=constraint_negotiator,
+journey_provider = (
+    TutuMCPJourneyProvider()
+)
+
+constraint_negotiator = (
+    ConstraintNegotiator()
+)
+
+negotiator_graph = (
+    build_negotiator_graph(
+        parser=trip_parser,
+        provider=journey_provider,
+        solver=constraint_negotiator,
+    )
 )
