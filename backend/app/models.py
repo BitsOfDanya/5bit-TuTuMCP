@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlmodel import Field, SQLModel
 
@@ -51,34 +51,6 @@ class MessageRecord(Base):
         DateTime(timezone=True),
         nullable=False,
         default=utc_now,
-    )
-
-
-class BookingRecord(Base):
-    __tablename__ = "bookings"
-    __table_args__ = (Index("ix_bookings_user_updated", "user_id", "updated_at"),)
-
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
-    user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
-    conversation_id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    product_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    option: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    steps: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    current_step_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    selections: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    travelers_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    checkout_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=utc_now
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
     )
 
 

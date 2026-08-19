@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { getSession, logout } from "./api/auth";
 import { AuthModal } from "./components/AuthModal";
@@ -8,15 +8,11 @@ import { ChatWidget } from "./components/ChatWidget";
 import { HomePage } from "./components/HomePage";
 import type { AuthSession, User } from "./types";
 
-const BookingFlowPage = lazy(() =>
-  import("./components/BookingFlowPage").then((module) => ({ default: module.BookingFlowPage })),
-);
-
 export function App() {
   const queryClient = useQueryClient();
   const [isAuthOpen, setAuthOpen] = useState(false);
+  const [isChatOpen, setChatOpen] = useState(false);
   const [toast, setToast] = useState("");
-  const [locationPath, setLocationPath] = useState(() => window.location.pathname);
   const toastTimer = useRef<number | null>(null);
   const sessionQuery = useQuery({
     queryKey: ["auth-session"],
@@ -24,10 +20,7 @@ export function App() {
   });
 
   useEffect(() => {
-    const handlePopState = () => setLocationPath(window.location.pathname);
-    window.addEventListener("popstate", handlePopState);
     return () => {
-      window.removeEventListener("popstate", handlePopState);
       if (toastTimer.current !== null) {
         window.clearTimeout(toastTimer.current);
       }
@@ -35,11 +28,6 @@ export function App() {
   }, []);
 
   const user = sessionQuery.data?.user ?? null;
-
-  function navigate(path: string) {
-    window.history.pushState({}, "", path);
-    setLocationPath(window.location.pathname);
-  }
 
   function notify(message: string) {
     setToast(message);
@@ -66,28 +54,13 @@ export function App() {
     }
   }
 
-  const bookingMatch = locationPath.match(/^\/booking\/([0-9a-f-]+)$/i);
-  if (bookingMatch) {
-    const bookingUserId = new URLSearchParams(window.location.search).get("user_id");
-    if (bookingUserId) {
-      return (
-        <Suspense fallback={<main className="booking-loading">Загружаю оформление…</main>}>
-          <BookingFlowPage
-            bookingId={bookingMatch[1]}
-            userId={bookingUserId}
-            onBack={() => navigate("/")}
-          />
-        </Suspense>
-      );
-    }
-  }
-
   return (
     <>
       <HomePage
         user={user}
         onLogin={() => setAuthOpen(true)}
         onLogout={handleLogout}
+        onOpenAssistant={() => setChatOpen(true)}
         onStub={notify}
       />
       <AuthModal
@@ -96,7 +69,12 @@ export function App() {
         onAuthenticated={handleAuthenticated}
         onStub={notify}
       />
-      <ChatWidget key={user?.id ?? "guest"} user={user} />
+      <ChatWidget
+        key={user?.id ?? "guest"}
+        user={user}
+        isOpen={isChatOpen}
+        onOpenChange={setChatOpen}
+      />
       {toast ? (
         <div className="toast" role="status">
           <span>{toast}</span>

@@ -7,7 +7,6 @@ from fastapi import FastAPI, HTTPException, status
 from app.ai_client import AIServiceClientDep, AIServiceError
 from app.api import router as agent_router
 from app.auth_api import router as auth_router
-from app.booking_api import router as booking_router
 from app.database import dispose_database
 from app.db import create_db_and_tables
 from app.schemas import HealthResponse, ReadinessResponse
@@ -29,7 +28,6 @@ app = FastAPI(
 )
 app.include_router(agent_router)
 app.include_router(auth_router)
-app.include_router(booking_router)
 
 
 @app.get("/health")

@@ -32,7 +32,7 @@ request. Summarize only options returned by the tool. If it is unavailable,
 briefly say search is temporarily unavailable and continue the intake flow.
 
 Return every known value in trip and null for unknown values. Confirm newly understood
-details and ask for at most two next missing fields. Passenger documents are collected
-during checkout, after the user selects a flight. Do not claim a redirect happened. Format
-assistant_message as concise Markdown with no raw HTML.
+details and ask for at most two next missing fields. Passenger documents are not required
+for search and are handled only after the user selects an option. Do not claim a redirect
+happened. Format assistant_message as concise Markdown with no raw HTML.
 """.strip()

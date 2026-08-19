@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { axe } from "vitest-axe";
@@ -95,6 +95,20 @@ test("registers a new account and signs the user in", async () => {
 
   expect(await screen.findByRole("button", { name: /анна петрова/i })).toBeInTheDocument();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("opens Jarvell from the product list as a modal", async () => {
+  const user = userEvent.setup();
+  renderApp();
+
+  await user.click(await screen.findByRole("tab", { name: "Джарвел" }));
+
+  const dialog = screen.getByRole("dialog", { name: "Джарвелл" });
+  expect(dialog).toBeInTheDocument();
+  expect(dialog).toHaveAttribute("aria-modal", "true");
+  await waitFor(() =>
+    expect(within(dialog).getByLabelText("Сообщение Джарвеллу")).toHaveFocus(),
+  );
 });
 
 test("sign-in dialog has no automated accessibility violations", async () => {

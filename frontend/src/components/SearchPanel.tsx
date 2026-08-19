@@ -33,6 +33,7 @@ interface Product {
 }
 
 interface SearchPanelProps {
+  onOpenAssistant: () => void;
   onStub: (message: string) => void;
 }
 
@@ -60,12 +61,23 @@ const searchLabels: Record<ProductId, string> = {
   jarvel: "Открыть Джарвела",
 };
 
-export function SearchPanel({ onStub }: SearchPanelProps) {
+export function SearchPanel({ onOpenAssistant, onStub }: SearchPanelProps) {
   const [activeProduct, setActiveProduct] = useState<ProductId>("avia");
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (activeProduct === "jarvel") {
+      onOpenAssistant();
+      return;
+    }
     onStub(searchLabels[activeProduct] + ": поиск пока работает как демонстрация");
+  }
+
+  function handleProductSelect(productId: ProductId) {
+    setActiveProduct(productId);
+    if (productId === "jarvel") {
+      onOpenAssistant();
+    }
   }
 
   return (
@@ -78,7 +90,7 @@ export function SearchPanel({ onStub }: SearchPanelProps) {
             type="button"
             role="tab"
             aria-selected={activeProduct === id}
-            onClick={() => setActiveProduct(id)}
+            onClick={() => handleProductSelect(id)}
           >
             <span className="product-icon-wrap">
               {badge ? <small>{badge}</small> : null}

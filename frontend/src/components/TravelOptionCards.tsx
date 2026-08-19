@@ -15,11 +15,9 @@ import type { SearchOption, SearchSegment } from "../api/chat";
 
 interface TravelOptionCardsProps {
   options: SearchOption[];
-  onSelect?: (option: SearchOption) => void;
-  selectingId?: string | null;
 }
 
-export function TravelOptionCards({ options, onSelect, selectingId }: TravelOptionCardsProps) {
+export function TravelOptionCards({ options }: TravelOptionCardsProps) {
   if (!options.length) {
     return null;
   }
@@ -27,26 +25,13 @@ export function TravelOptionCards({ options, onSelect, selectingId }: TravelOpti
   return (
     <div className="travel-options" aria-label="Найденные варианты">
       {options.map((option) => (
-        <TravelOptionCard
-          key={`${option.kind}-${option.id}`}
-          option={option}
-          onSelect={onSelect}
-          isSelecting={selectingId === option.id}
-        />
+        <TravelOptionCard key={`${option.kind}-${option.id}`} option={option} />
       ))}
     </div>
   );
 }
 
-function TravelOptionCard({
-  option,
-  onSelect,
-  isSelecting,
-}: {
-  option: SearchOption;
-  onSelect?: (option: SearchOption) => void;
-  isSelecting: boolean;
-}) {
+function TravelOptionCard({ option }: { option: SearchOption }) {
   const href = safeActionUrl(option.action_url);
   const content = (
     <>
@@ -91,32 +76,12 @@ function TravelOptionCard({
 
       <div className="travel-option-action">
         <span>
-          {isSelecting
-            ? "Открываю оформление…"
-            : onSelect
-              ? "Выбрать и оформить"
-              : href
-                ? "Посмотреть на Туту"
-                : "Ссылка пока недоступна"}
+          {href ? "Перейти к оформлению" : "Ссылка пока недоступна"}
         </span>
         {href ? <ExternalLink size={14} aria-hidden="true" /> : null}
       </div>
     </>
   );
-
-  if (onSelect) {
-    return (
-      <button
-        className="travel-option-card"
-        type="button"
-        disabled={isSelecting}
-        onClick={() => onSelect(option)}
-        aria-label={`Выбрать вариант: ${option.title}, ${formatMoney(option.total_price, option.currency)}`}
-      >
-        {content}
-      </button>
-    );
-  }
 
   if (!href) {
     return <article className="travel-option-card travel-option-card-disabled">{content}</article>;

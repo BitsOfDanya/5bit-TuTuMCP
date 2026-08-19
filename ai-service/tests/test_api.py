@@ -5,8 +5,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.agent.graph import get_agent
-from app.booking.graph import get_booking_copilot
-from app.domain.booking import BookingCopilotResponse
 from app.domain.documents import IdentityDocumentType, PassengerDocumentData, PassengerSex
 from app.domain.travel import (
     AgentTurn,
@@ -75,23 +73,11 @@ class FakeConstraintNegotiator:
         return {"status": "ok", "service": "constraint-negotiator"}
 
 
-class FakeBookingCopilot:
-    async def ainvoke(self, _: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "response": BookingCopilotResponse(
-                assistant_message="Рекомендую **Эконом**.",
-                proposed_data={"option_id": "basic"},
-                can_apply=True,
-            )
-        }
-
-
 @pytest.fixture
 def client() -> TestClient:
     app.dependency_overrides[get_agent] = FakeAgent
     app.dependency_overrides[get_document_extractor] = FakeExtractor
     app.dependency_overrides[get_constraint_negotiator_client] = FakeConstraintNegotiator
-    app.dependency_overrides[get_booking_copilot] = FakeBookingCopilot
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -131,20 +117,3 @@ def test_document_contract(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json()["document"]["last_name_latin"] == "IVANOV"
     assert response.json()["manual_review_required"] is False
-
-
-def test_booking_copilot_contract(client: TestClient) -> None:
-    response = client.post(
-        "/api/v1/ai/booking/assist",
-        json={
-            "product_type": "flight",
-            "current_step": "select_fare",
-            "travelers_count": 1,
-            "current_options": [
-                {"id": "basic", "title": "Эконом", "description": "Ручная кладь"}
-            ],
-            "trip": {"service_type": "flight"},
-        },
-    )
-    assert response.status_code == 200
-    assert response.json()["proposed_data"] == {"option_id": "basic"}
