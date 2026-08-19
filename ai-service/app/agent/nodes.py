@@ -5,6 +5,7 @@ from typing import Any
 from langchain_core.messages import ToolMessage
 
 from app.agent.prompts import PLANNER_PROMPT
+from app.agent.search_options import build_search_options
 from app.agent.state import TravelWorkflowState
 from app.agent.tools.travel import (
     build_search_redirect,
@@ -55,10 +56,12 @@ class TravelWorkflowNodes:
             for message in result.get("messages", [])
             if isinstance(message, ToolMessage) and message.name
         ]
+        tool_payloads = tool_payloads_from_messages(result.get("messages", []))
         return {
             "structured_response": turn,
             "tools_used": tools_used,
-            "tool_statuses": tool_statuses_from_messages(result.get("messages", [])),
+            "tool_statuses": tool_statuses_from_payloads(tool_payloads),
+            "constraint_result": tool_payloads.get("negotiate_constraints", {}),
         }
 
     def finalize(self, state: TravelWorkflowState) -> dict[str, Any]:
@@ -86,11 +89,15 @@ class TravelWorkflowNodes:
             "redirect_url": redirect_url,
             "tools_used": list(dict.fromkeys(tools_used)),
             "tool_statuses": state.get("tool_statuses", {}),
+            "search_options": build_search_options(
+                state.get("constraint_result"),
+                redirect_url,
+            ),
         }
 
 
-def tool_statuses_from_messages(messages: list[Any]) -> dict[str, str]:
-    statuses: dict[str, str] = {}
+def tool_payloads_from_messages(messages: list[Any]) -> dict[str, dict[str, Any]]:
+    payloads: dict[str, dict[str, Any]] = {}
     for message in messages:
         if not isinstance(message, ToolMessage) or not message.name:
             continue
@@ -100,6 +107,14 @@ def tool_statuses_from_messages(messages: list[Any]) -> dict[str, str]:
                 payload = loads(payload)
             except JSONDecodeError:
                 continue
-        if isinstance(payload, dict) and isinstance(payload.get("status"), str):
-            statuses[message.name] = payload["status"]
-    return statuses
+        if isinstance(payload, dict):
+            payloads[message.name] = payload
+    return payloads
+
+
+def tool_statuses_from_payloads(payloads: dict[str, dict[str, Any]]) -> dict[str, str]:
+    return {
+        name: payload["status"]
+        for name, payload in payloads.items()
+        if isinstance(payload.get("status"), str)
+    }

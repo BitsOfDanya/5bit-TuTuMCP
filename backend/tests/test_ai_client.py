@@ -40,6 +40,32 @@ class FakeAsyncClient:
                 },
                 "tools_used": ["validate_trip_details"],
                 "tool_statuses": {},
+                "search_options": [
+                    {
+                        "id": "journey-1",
+                        "kind": "journey",
+                        "title": "Москва — Казань",
+                        "total_price": 18_900,
+                        "currency": "RUB",
+                        "outbound": {
+                            "mode": "train",
+                            "origin": "Москва",
+                            "destination": "Казань",
+                            "departure": "2026-09-01T10:00:00+03:00",
+                            "arrival": "2026-09-01T21:30:00+03:00",
+                            "price": 9_500,
+                        },
+                        "inbound": {
+                            "mode": "train",
+                            "origin": "Казань",
+                            "destination": "Москва",
+                            "departure": "2026-09-05T18:00:00+03:00",
+                            "arrival": "2026-09-06T05:30:00+03:00",
+                            "price": 9_400,
+                        },
+                        "action_url": "https://www.tutu.ru/poezda/view_d.php?np=002E",
+                    }
+                ],
                 "redirect_url": None,
             },
         )
@@ -55,6 +81,8 @@ async def test_sends_history_and_parses_ai_service_response(monkeypatch) -> None
     )
     assert result.response == "**Когда хотите поехать?**"
     assert result.trip.origin == "Москва"
+    assert result.search_options[0].total_price == 18_900
+    assert result.search_options[0].action_url.startswith("https://www.tutu.ru/")
     assert FakeAsyncClient.request_kwargs["client"]["headers"] == {
         "X-AI-Service-Token": "internal-token"
     }

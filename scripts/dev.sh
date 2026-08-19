@@ -113,7 +113,7 @@ wait_for "backend chain" "http://127.0.0.1:8000/ready"
 wait_for "frontend" "http://localhost:5173/"
 
 echo
-echo "Local chain is ready: http://127.0.0.1:5173"
+echo "Local chain is ready: http://localhost:5173"
 echo "Run 'make smoke' in another terminal for an end-to-end agent request."
 echo "Press Ctrl+C to stop all services."
 

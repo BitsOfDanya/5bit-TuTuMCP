@@ -82,6 +82,84 @@ test("renders Markdown responses and continues the backend session", async () =>
   });
 });
 
+test("renders MCP search results as clickable inline cards", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.post("/api/v1/agent/chat", () =>
+      HttpResponse.json({
+        user_id: authenticatedUser.id,
+        session_id: "33333333-3333-4333-8333-333333333333",
+        response: "Нашёл **подходящий вариант**.",
+        trip: {},
+        missing_fields: [],
+        is_complete: true,
+        next_action: "redirect_to_search",
+        redirect_url: "/search/train?origin=Москва",
+        tools_used: ["negotiate_constraints"],
+        tool_statuses: { negotiate_constraints: "success" },
+        search_options: [
+          {
+            id: "journey-1",
+            kind: "journey",
+            title: "Москва — Казань",
+            explanation: null,
+            total_price: 18_900,
+            currency: "RUB",
+            outbound: {
+              mode: "train",
+              origin: "Москва",
+              destination: "Казань",
+              departure: "2026-09-01T10:00:00+03:00",
+              arrival: "2026-09-01T21:30:00+03:00",
+              price: 9_500,
+              currency: "RUB",
+              duration_minutes: 690,
+              transfers: 0,
+              carrier: "ФПК",
+              voyage_no: "002Э",
+            },
+            inbound: {
+              mode: "train",
+              origin: "Казань",
+              destination: "Москва",
+              departure: "2026-09-05T18:00:00+03:00",
+              arrival: "2026-09-06T05:30:00+03:00",
+              price: 9_400,
+              currency: "RUB",
+              duration_minutes: 690,
+              transfers: 0,
+              carrier: "ФПК",
+              voyage_no: "001Г",
+            },
+            hotel: null,
+            changes: [],
+            action_url: "https://www.tutu.ru/poezda/view_d.php?np=002E",
+          },
+        ],
+      }),
+    ),
+  );
+
+  render(<ChatWidget user={authenticatedUser} />);
+  await user.click(screen.getByRole("button", { name: "Открыть чат с Джарвеллом" }));
+  await user.type(screen.getByLabelText("Сообщение Джарвеллу"), "Покажи варианты");
+  await user.click(screen.getByRole("button", { name: "Отправить сообщение" }));
+
+  const card = await screen.findByRole("link", {
+    name: /открыть вариант: Москва — Казань/i,
+  });
+  expect(card).toHaveAttribute(
+    "href",
+    "https://www.tutu.ru/poezda/view_d.php?np=002E",
+  );
+  expect(card).toHaveAttribute("target", "_blank");
+  expect(within(card).getByText("18 900 ₽")).toBeInTheDocument();
+  expect(card).toHaveTextContent("10:00");
+  expect(card).toHaveTextContent("21:30");
+  expect(within(card).getAllByText("Без пересадок")).toHaveLength(2);
+  expect(screen.queryByText("Перейти к вариантам")).not.toBeInTheDocument();
+});
+
 test("chat dialog has no automated accessibility violations", async () => {
   const user = userEvent.setup();
   const { container } = render(<ChatWidget user={authenticatedUser} />);

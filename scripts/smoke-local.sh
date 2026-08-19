@@ -7,7 +7,7 @@ HISTORY_FILE="$(mktemp)"
 CONSTRAINT_URL="${CONSTRAINT_URL:-http://127.0.0.1:8010}"
 AI_URL="${AI_URL:-http://127.0.0.1:8020}"
 BACKEND_URL="${BACKEND_URL:-http://127.0.0.1:8000}"
-FRONTEND_URL="${FRONTEND_URL:-http://127.0.0.1:5173}"
+FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
 trap 'rm -f "$RESPONSE_FILE" "$HISTORY_FILE"' EXIT
 
 curl --fail --silent --show-error "$CONSTRAINT_URL/health" >/dev/null
@@ -37,6 +37,7 @@ required = {
     "plan",
     "tools_used",
     "tool_statuses",
+    "search_options",
     "next_action",
 }
 missing = sorted(required - payload.keys())
@@ -47,12 +48,19 @@ if "negotiate_constraints" not in payload["tools_used"]:
 constraint_status = payload["tool_statuses"].get("negotiate_constraints")
 if constraint_status not in {"success", "negotiation_required", "no_options"}:
     raise SystemExit(f"Constraint negotiation failed: status={constraint_status!r}")
+if constraint_status in {"success", "negotiation_required"}:
+    options = payload["search_options"]
+    if not options:
+        raise SystemExit("MCP found journeys, but the API did not return search cards")
+    if not all(option.get("action_url") for option in options):
+        raise SystemExit("One or more search cards are not clickable")
 
 print("End-to-end chat passed")
 print(f"session_id={payload['session_id']}")
 print(f"next_action={payload['next_action']}")
 print(f"tools_used={','.join(payload['tools_used'])}")
 print(f"constraint_status={constraint_status}")
+print(f"search_cards={len(payload['search_options'])}")
 PY
 
 SESSION_ID="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["session_id"])' "$RESPONSE_FILE")"

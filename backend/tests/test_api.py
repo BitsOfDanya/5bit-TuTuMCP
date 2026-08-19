@@ -84,6 +84,34 @@ class FakeAIServiceClient:
         trip = TripDetails.model_validate(values)
         missing = missing_trip_fields(trip)
         next_action = next_travel_action(trip)
+        search_options = []
+        if not missing:
+            search_options = [
+                {
+                    "id": "journey-1",
+                    "kind": "journey",
+                    "title": "Москва — Казань",
+                    "total_price": 18_900,
+                    "currency": "RUB",
+                    "outbound": {
+                        "mode": "train",
+                        "origin": "Москва",
+                        "destination": "Казань",
+                        "departure": "2026-09-01T10:00:00+03:00",
+                        "arrival": "2026-09-01T21:30:00+03:00",
+                        "price": 9_500,
+                    },
+                    "inbound": {
+                        "mode": "train",
+                        "origin": "Казань",
+                        "destination": "Москва",
+                        "departure": "2026-09-05T18:00:00+03:00",
+                        "arrival": "2026-09-06T05:30:00+03:00",
+                        "price": 9_400,
+                    },
+                    "action_url": "https://www.tutu.ru/poezda/view_d.php?np=002E",
+                }
+            ]
         return AIChatResult(
             response=turn.assistant_message,
             trip=trip,
@@ -109,6 +137,7 @@ class FakeAIServiceClient:
             ),
             tools_used=["validate_trip_details", "determine_next_action"],
             tool_statuses={},
+            search_options=search_options,
             redirect_url=(
                 search_redirect_url(trip) if next_action.value == "redirect_to_search" else None
             ),
@@ -194,6 +223,7 @@ def test_chat_returns_plan_and_persists_history(client: TestClient) -> None:
     assert second_body["is_complete"] is True
     assert second_body["next_action"] == "redirect_to_search"
     assert second_body["redirect_url"].startswith("/search/train?")
+    assert second_body["search_options"][0]["total_price"] == 18_900
 
     history = client.get(f"/api/v1/agent/users/{USER_ID}/sessions/{session_id}").json()
     assert [message["role"] for message in history["messages"]] == [

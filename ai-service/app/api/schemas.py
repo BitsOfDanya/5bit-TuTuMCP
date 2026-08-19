@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.domain.documents import PassengerDocumentData
+from app.domain.search import SearchOption
 from app.domain.travel import AgentNextAction, TravelPlan, TripDetails
 
 
@@ -25,6 +26,7 @@ class AIChatResponse(BaseModel):
     plan: TravelPlan
     tools_used: list[str]
     tool_statuses: dict[str, str]
+    search_options: list[SearchOption] = Field(default_factory=list)
     redirect_url: str | None = None
 
 

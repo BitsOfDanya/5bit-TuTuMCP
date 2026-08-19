@@ -10,7 +10,9 @@ import {
 } from "react";
 
 import { sendChatMessage } from "../api/chat";
+import type { SearchOption } from "../api/chat";
 import type { User } from "../types";
+import { TravelOptionCards } from "./TravelOptionCards";
 
 const ChatMarkdown = lazy(() =>
   import("./ChatMarkdown").then((module) => ({ default: module.ChatMarkdown })),
@@ -34,6 +36,7 @@ interface ChatMessage {
   role: "assistant" | "user";
   content: string;
   redirectUrl?: string | null;
+  options?: SearchOption[];
 }
 
 interface ChatWidgetProps {
@@ -151,6 +154,7 @@ export function ChatWidget({ user }: ChatWidgetProps) {
           role: "assistant",
           content: response.response,
           redirectUrl: response.redirect_url,
+          options: response.search_options ?? [],
         },
       ]);
     } catch (requestError) {
@@ -243,7 +247,7 @@ export function ChatWidget({ user }: ChatWidgetProps) {
               <p className="chat-date-marker">Сегодня</p>
               {messages.map((message) => (
                 <article
-                  className={`chat-message chat-message-${message.role}`}
+                  className={`chat-message chat-message-${message.role}${message.options?.length ? " chat-message-has-options" : ""}`}
                   key={message.id}
                 >
                   {message.role === "assistant" ? (
@@ -255,7 +259,8 @@ export function ChatWidget({ user }: ChatWidgetProps) {
                     <Suspense fallback={<span>Загружаю сообщение…</span>}>
                       <ChatMarkdown content={message.content} />
                     </Suspense>
-                    {message.redirectUrl ? (
+                    <TravelOptionCards options={message.options ?? []} />
+                    {message.redirectUrl && !message.options?.length ? (
                       <a className="chat-redirect" href={message.redirectUrl}>
                         Перейти к вариантам
                         <ArrowUpRight size={15} aria-hidden="true" />

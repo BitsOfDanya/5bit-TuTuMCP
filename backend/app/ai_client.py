@@ -3,13 +3,14 @@ from typing import Annotated, Literal
 
 import httpx
 from fastapi import Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.document_uploads import DocumentMediaType
 from app.schemas import (
     AgentNextAction,
     PassengerDocumentData,
+    SearchOption,
     TravelPlan,
     TripDetails,
 )
@@ -24,6 +25,7 @@ class AIChatResult(BaseModel):
     plan: TravelPlan
     tools_used: list[str]
     tool_statuses: dict[str, str]
+    search_options: list[SearchOption] = Field(default_factory=list)
     redirect_url: str | None = None
 
 

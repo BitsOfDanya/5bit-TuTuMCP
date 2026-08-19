@@ -1549,6 +1549,15 @@ button:disabled {
   box-shadow: 0 8px 20px rgb(80 54 195 / 16%);
 }
 
+.chat-message-has-options {
+  align-items: flex-start;
+}
+
+.chat-message-has-options .chat-bubble {
+  width: calc(100% - 32px);
+  max-width: calc(100% - 32px);
+}
+
 .chat-bubble > :first-child {
   margin-top: 0;
 }
@@ -1602,6 +1611,212 @@ button:disabled {
   color: #fff !important;
   background: #6d50e5;
   text-decoration: none;
+}
+
+.travel-options {
+  display: grid;
+  gap: 9px;
+  margin: 12px -5px -4px;
+}
+
+.travel-option-card {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  padding: 12px;
+  border: 1px solid #e4dff7;
+  border-radius: 14px;
+  color: #242033 !important;
+  background:
+    radial-gradient(circle at 100% 0, rgb(116 82 235 / 12%), transparent 42%),
+    linear-gradient(145deg, #fff 0%, #fbfaff 100%);
+  box-shadow: 0 8px 24px rgb(54 35 138 / 8%);
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.travel-option-card[href]:hover {
+  border-color: #aa99ef;
+  box-shadow: 0 12px 28px rgb(73 48 173 / 15%);
+  transform: translateY(-1px);
+}
+
+.travel-option-card[href]:focus-visible {
+  outline: 3px solid rgb(108 80 229 / 28%);
+  outline-offset: 2px;
+}
+
+.travel-option-card-disabled {
+  opacity: 0.82;
+}
+
+.travel-option-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.travel-option-heading > strong {
+  color: #4f36c0;
+  font-size: 15px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.travel-option-kind {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: #237855;
+  background: #e6f7ef;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.travel-option-kind-relaxation {
+  color: #6745cc;
+  background: #efeaff;
+}
+
+.travel-option-card h3 {
+  margin: 9px 0 3px;
+  color: #242033;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.travel-option-explanation {
+  margin: 0 0 9px !important;
+  color: #777184;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.travel-option-segments {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  margin-top: 9px;
+  border: 1px solid #eeebf6;
+  border-radius: 11px;
+  background: #eeebf6;
+}
+
+.travel-segment {
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  background: rgb(255 255 255 / 92%);
+}
+
+.travel-segment-icon {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 8px;
+  color: #6549d6;
+  background: #f0edfd;
+}
+
+.travel-segment > div:nth-child(2) {
+  display: grid;
+  min-width: 0;
+}
+
+.travel-segment small {
+  color: #948d9f;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.travel-segment > div:nth-child(2) > strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #282334;
+  font-size: 12px;
+}
+
+.travel-segment > div:nth-child(2) > span {
+  overflow: hidden;
+  color: #706a7c;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.travel-segment-meta {
+  display: grid;
+  justify-items: end;
+  color: #706a7c;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.travel-segment-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.travel-option-hotel,
+.travel-option-changes {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  color: #5f586c;
+  background: #f7f5fb;
+  font-size: 9px;
+}
+
+.travel-option-hotel > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.travel-option-hotel em {
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #fff;
+  background: #7659df;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.travel-option-changes {
+  color: #694bc8;
+  background: #f1edff;
+}
+
+.travel-option-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 10px;
+  color: #6546d5;
+  font-size: 10px;
+  font-weight: 900;
 }
 
 .chat-quick-prompts {

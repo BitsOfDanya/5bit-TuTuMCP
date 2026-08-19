@@ -50,7 +50,7 @@ class ConstraintNegotiatorClient:
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.post(
-                    f"{self._base_url}/api/v1/negotiator/from-spec",
+                    f"{self._base_url}/api/v1/negotiator/from-spec/public",
                     json=payload,
                 )
                 response.raise_for_status()
@@ -113,7 +113,7 @@ def compact_negotiation_result(payload: dict[str, Any], limit: int = 3) -> dict[
 def _compact_alternative(alternative: dict[str, Any]) -> dict[str, Any]:
     compact = {
         key: alternative[key]
-        for key in ("id", "kind", "changes", "score", "new_trip_spec")
+        for key in ("id", "kind", "changes", "score", "new_trip_spec", "summary")
         if key in alternative
     }
     if isinstance(alternative.get("journey"), dict):
@@ -122,7 +122,11 @@ def _compact_alternative(alternative: dict[str, Any]) -> dict[str, Any]:
 
 
 def _compact_journey(journey: dict[str, Any]) -> dict[str, Any]:
-    compact = {key: journey[key] for key in ("id", "total_price") if key in journey}
+    compact = {
+        key: journey[key]
+        for key in ("id", "total_price", "transport_price", "hotel_price")
+        if key in journey
+    }
     for direction in ("outbound", "inbound"):
         segment = journey.get(direction)
         if isinstance(segment, dict):
@@ -137,9 +141,12 @@ def _compact_journey(journey: dict[str, Any]) -> dict[str, Any]:
                     "arrival",
                     "price",
                     "currency",
+                    "duration_minutes",
                     "transfers",
                     "carrier",
                     "voyage_no",
+                    "rating",
+                    "review_count",
                     "booking_url",
                     "search_results_url",
                 )
@@ -157,9 +164,12 @@ def _compact_journey(journey: dict[str, Any]) -> dict[str, Any]:
                 "stars",
                 "rating",
                 "address",
+                "room_name",
                 "check_in",
                 "check_out",
+                "nights",
                 "booking_url",
+                "photo_url",
             )
             if key in hotel
         }

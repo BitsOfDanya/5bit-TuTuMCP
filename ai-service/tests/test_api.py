@@ -91,6 +91,7 @@ def test_chat_contract(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json()["response"] == "**Параметры собраны.**"
     assert response.json()["trip"]["service_type"] == "train"
+    assert response.json()["search_options"] == []
 
 
 def test_health(client: TestClient) -> None:

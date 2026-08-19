@@ -37,5 +37,6 @@ async def chat(request: AIChatRequest, agent: AgentDep) -> AIChatResponse:
         plan=plan,
         tools_used=list(dict.fromkeys(result.get("tools_used", []))),
         tool_statuses=result.get("tool_statuses", {}),
+        search_options=result.get("search_options", []),
         redirect_url=result.get("redirect_url"),
     )

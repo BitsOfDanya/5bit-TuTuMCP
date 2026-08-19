@@ -20,6 +20,7 @@ class FakeResponse:
 
 class FakeAsyncClient:
     payload: dict[str, Any] | None = None
+    url: str | None = None
 
     def __init__(self, **_: Any) -> None:
         pass
@@ -30,7 +31,8 @@ class FakeAsyncClient:
     async def __aexit__(self, *_: Any) -> None:
         return None
 
-    async def post(self, _: str, *, json: dict[str, Any]) -> FakeResponse:
+    async def post(self, url: str, *, json: dict[str, Any]) -> FakeResponse:
+        FakeAsyncClient.url = url
         FakeAsyncClient.payload = json
         return FakeResponse()
 
@@ -55,6 +57,7 @@ async def test_maps_complete_round_trip_to_constraint_negotiator(monkeypatch) ->
         )
     )
     assert result["status"] == "success"
+    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/from-spec/public"
     assert FakeAsyncClient.payload == {
         "trip": {
             "origin": "Москва",

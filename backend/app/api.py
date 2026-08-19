@@ -100,6 +100,7 @@ async def chat_with_agent(
             plan=result.plan,
             tools_used=result.tools_used,
             tool_statuses=result.tool_statuses,
+            search_options=result.search_options,
             redirect_url=result.redirect_url,
         )
 
