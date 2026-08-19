@@ -26,6 +26,8 @@ class Settings(DatabaseSettings):
     ai_service_url: str = "http://127.0.0.1:8020"
     ai_service_token: SecretStr = SecretStr("")
     ai_service_timeout_seconds: float = 90.0
+    smart_trip_tracker_url: str = "http://127.0.0.1:8001"
+    smart_trip_tracker_timeout_seconds: float = 60.0
     auth_secret_key: SecretStr = SecretStr("local-development-key-change-me-please")
     auth_cookie_name: str = "tutumcp_session"
     auth_debug: bool = True

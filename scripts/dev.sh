@@ -67,11 +67,13 @@ trap cleanup EXIT INT TERM
 require_file "$ROOT_DIR/backend/.venv/bin/python"
 require_file "$ROOT_DIR/ai-service/.venv/bin/python"
 require_file "$ROOT_DIR/constraint-negotiator/.venv/bin/python"
+require_file "$ROOT_DIR/smart-trip-tracker/backend/.venv/bin/python"
 require_file "$ROOT_DIR/frontend/node_modules/.bin/vite"
 
 assert_port_free 8010 "constraint-negotiator"
 assert_port_free 8020 "ai-service"
 assert_port_free 8000 "backend"
+assert_port_free 8001 "smart-trip-tracker"
 if lsof -nP -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
   if curl --fail --silent --show-error http://localhost:5173/ >/dev/null 2>&1; then
     START_FRONTEND=false
@@ -97,6 +99,10 @@ start_service \
   "ai-service" \
   .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8020
 start_service \
+  "smart-trip-tracker" \
+  "smart-trip-tracker/backend" \
+  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+start_service \
   "backend" \
   "backend" \
   .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -109,6 +115,7 @@ fi
 
 wait_for "constraint-negotiator" "http://127.0.0.1:8010/health"
 wait_for "ai-service chain" "http://127.0.0.1:8020/ready"
+wait_for "smart-trip-tracker" "http://127.0.0.1:8001/health"
 wait_for "backend chain" "http://127.0.0.1:8000/ready"
 wait_for "frontend" "http://localhost:5173/"
 

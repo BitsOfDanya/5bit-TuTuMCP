@@ -14,6 +14,7 @@
 - история чатов хранится по пользователям в SQLite и управляется через Alembic;
 - LangGraph-агент вынесен в отдельный stateless `ai-service`;
 - `constraint-negotiator` подключён к агенту как инструмент поиска и ослабления ограничений;
+- найденный Jarvell вариант можно передать в Smart Trip Tracker и отслеживать прямо во frontend;
 - международные документы распознаются из PNG, JPEG и PDF;
 - компонентные, accessibility и FastAPI-тесты.
 
@@ -21,13 +22,15 @@
 
 ```text
 frontend -> backend :8000 -> ai-service :8020 -> OpenAI
-                                  |
-                                  +-> constraint-negotiator :8010 -> Tutu MCP
+              |                   |
+              |                   +-> constraint-negotiator :8010 -> Tutu MCP
+              +-> smart-trip-tracker :8001 -> Tutu MCP
 ```
 
 - `backend` владеет авторизацией, SQLite/Alembic и полной историей диалогов;
 - `ai-service` владеет LangGraph, OpenAI, инструментами и распознаванием документов;
 - `constraint-negotiator` ищет варианты и предлагает ослабление ограничений;
+- `smart-trip-tracker` хранит историю цены выбранной комбинации и формирует рекомендацию;
 - frontend продолжает работать только с публичным backend API.
 
 ## Запуск AI-сервисов
@@ -50,6 +53,7 @@ make dev
 
 - frontend — `http://127.0.0.1:5173`;
 - backend — `http://127.0.0.1:8000`;
+- smart-trip-tracker — `http://127.0.0.1:8001`;
 - constraint-negotiator — `http://127.0.0.1:8010`;
 - ai-service — `http://127.0.0.1:8020`.
 

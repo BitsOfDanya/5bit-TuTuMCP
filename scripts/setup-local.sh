@@ -35,15 +35,21 @@ ensure_env_file "$ROOT_DIR/ai-service/.env.example" "$ROOT_DIR/ai-service/.env"
 ensure_env_file \
   "$ROOT_DIR/constraint-negotiator/.env.example" \
   "$ROOT_DIR/constraint-negotiator/.env"
+ensure_env_file \
+  "$ROOT_DIR/smart-trip-tracker/backend/.env.example" \
+  "$ROOT_DIR/smart-trip-tracker/backend/.env"
 
 ensure_venv "$ROOT_DIR/backend"
 ensure_venv "$ROOT_DIR/ai-service"
 ensure_venv "$ROOT_DIR/constraint-negotiator"
+ensure_venv "$ROOT_DIR/smart-trip-tracker/backend"
 
 "$ROOT_DIR/backend/.venv/bin/python" -m pip install -e "$ROOT_DIR/backend[dev]"
 "$ROOT_DIR/ai-service/.venv/bin/python" -m pip install -e "$ROOT_DIR/ai-service[dev]"
 "$ROOT_DIR/constraint-negotiator/.venv/bin/python" -m pip install \
   -r "$ROOT_DIR/constraint-negotiator/requirements.txt"
+"$ROOT_DIR/smart-trip-tracker/backend/.venv/bin/python" -m pip install \
+  -e "$ROOT_DIR/smart-trip-tracker/backend[dev]"
 npm --prefix "$ROOT_DIR/frontend" ci
 
 (

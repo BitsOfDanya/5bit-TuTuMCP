@@ -118,6 +118,9 @@ test("creates tracking and shows the complete-trip dashboard", async () => {
     http.post("/api/v1/trips/:id/observations", () =>
       HttpResponse.json(spikedTracking),
     ),
+    http.post("/api/v1/trips/:id/refresh", () =>
+      HttpResponse.json(spikedTracking),
+    ),
     http.post("/api/v1/trips/:id/simulate", ({ request }) => {
       const scenario = new URL(request.url).searchParams.get("scenario");
       return HttpResponse.json(
@@ -136,12 +139,14 @@ test("creates tracking and shows the complete-trip dashboard", async () => {
   expect(await screen.findByRole("heading", { name: "Москва → Казань" })).toBeInTheDocument();
   expect(screen.getByText("Комфорт у набережной")).toBeInTheDocument();
   expect(screen.getByRole("img", { name: /график изменения/i })).toBeInTheDocument();
-  expect(screen.getByText("Собираем историю")).toBeInTheDocument();
+  expect(screen.getByText("Наблюдаем за ценой")).toBeInTheDocument();
   expect(screen.getByRole("list", { name: "История изменения цены" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Проверить цену" }));
+  expect(await screen.findByText("Можно немного подождать")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Добавить как новую точку" }));
 
-  expect(await screen.findByText("Лучше подождать")).toBeInTheDocument();
   expect(screen.getByText(/\+6\s*960/)).toBeInTheDocument();
 
 
