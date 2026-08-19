@@ -12,9 +12,47 @@
 - пользователи и одноразовые challenge хранятся в SQLite;
 - пароль хешируется Argon2, сессия хранится в подписанной HttpOnly cookie;
 - история чатов хранится по пользователям в SQLite и управляется через Alembic;
-- LangGraph-агент работает по схеме `planner -> executor -> finalizer`;
+- LangGraph-агент вынесен в отдельный stateless `ai-service`;
+- `constraint-negotiator` подключён к агенту как инструмент поиска и ослабления ограничений;
 - международные документы распознаются из PNG, JPEG и PDF;
 - компонентные, accessibility и FastAPI-тесты.
+
+## Архитектура
+
+```text
+frontend -> backend :8000 -> ai-service :8020 -> OpenAI
+                                  |
+                                  +-> constraint-negotiator :8010 -> Tutu MCP
+```
+
+- `backend` владеет авторизацией, SQLite/Alembic и полной историей диалогов;
+- `ai-service` владеет LangGraph, OpenAI, инструментами и распознаванием документов;
+- `constraint-negotiator` ищет варианты и предлагает ослабление ограничений;
+- frontend продолжает работать только с публичным backend API.
+
+## Запуск AI-сервисов
+
+Сначала запустите constraint negotiator:
+
+```bash
+cd constraint-negotiator
+source .venv/bin/activate
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
+```
+
+Затем Jarvell AI Service:
+
+```bash
+cd ../ai-service
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+cp .env.example .env
+fastapi dev
+```
+
+Для локального перехода `ai-service` также читает уже настроенный ключ из
+`backend/.env`. После переноса ключа в `ai-service/.env` fallback можно удалить.
 
 ## Backend
 
@@ -41,7 +79,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/agent/chat \
   -d '{"user_id":"11111111-1111-1111-1111-111111111111","message":"Нужен поезд из Москвы в Казань 1 сентября, нас двое, бюджет 20000 рублей"}'
 ```
 
-Ответ содержит `session_id`, нормализованный `trip`, план, использованные инструменты,
+Backend обращается к `AI_SERVICE_URL` (по умолчанию `http://127.0.0.1:8020`). Ответ содержит
+`session_id`, нормализованный `trip`, план, использованные инструменты,
 `next_action` и `redirect_url`. Для продолжения диалога передавайте тот же `session_id`.
 
 ## Frontend
@@ -69,6 +108,10 @@ cd ../backend
 .venv/bin/ruff check app tests
 .venv/bin/pytest -q
 .venv/bin/alembic check
+
+cd ../ai-service
+.venv/bin/ruff check app tests
+.venv/bin/pytest -q
 ```
 
 После `npm run build` FastAPI автоматически раздаёт `frontend/dist` с корня.

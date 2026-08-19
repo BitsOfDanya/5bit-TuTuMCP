@@ -87,7 +87,9 @@ class AgentTurn(BaseModel):
 
     assistant_message: str = Field(
         min_length=1,
-        description="Concise reply that confirms captured data and asks for missing data.",
+        description=(
+            "Concise Markdown reply that confirms captured data and asks for missing data."
+        ),
     )
     trip: TripDetails = Field(
         description="All trip parameters known from the conversation. Unknown values stay null.",
@@ -98,6 +100,7 @@ class PlanAction(StrEnum):
     EXTRACT_TRIP_DETAILS = "extract_trip_details"
     VALIDATE_TRIP_DETAILS = "validate_trip_details"
     DETERMINE_NEXT_ACTION = "determine_next_action"
+    NEGOTIATE_CONSTRAINTS = "negotiate_constraints"
     BUILD_SEARCH_REDIRECT = "build_search_redirect"
 
 
@@ -108,7 +111,7 @@ class PlanStep(BaseModel):
 
 class TravelPlan(BaseModel):
     objective: str = Field(min_length=1, max_length=500)
-    steps: list[PlanStep] = Field(min_length=3, max_length=4)
+    steps: list[PlanStep] = Field(min_length=3, max_length=5)
 
     @model_validator(mode="after")
     def validate_step_order(self) -> "TravelPlan":
@@ -120,8 +123,14 @@ class TravelPlan(BaseModel):
         ]
         if actions[:3] != required_prefix:
             raise ValueError("The plan must start with extract, validate, and next action.")
-        if len(actions) == 4 and actions[3] is not PlanAction.BUILD_SEARCH_REDIRECT:
-            raise ValueError("The optional fourth step must build the search redirect.")
+        optional = actions[3:]
+        allowed = {PlanAction.NEGOTIATE_CONSTRAINTS, PlanAction.BUILD_SEARCH_REDIRECT}
+        if any(action not in allowed for action in optional):
+            raise ValueError("The plan contains an unsupported optional action.")
+        if len(optional) != len(set(optional)):
+            raise ValueError("Optional plan actions cannot be repeated.")
+        if optional == [PlanAction.BUILD_SEARCH_REDIRECT, PlanAction.NEGOTIATE_CONSTRAINTS]:
+            raise ValueError("Constraint negotiation must run before redirect creation.")
         return self
 
 
@@ -284,9 +293,7 @@ def missing_document_fields(document: PassengerDocumentData) -> list[str]:
         required.append("document_series")
 
     missing = [
-        field
-        for field in required
-        if getattr(document, field) in (None, "", PassengerSex.UNKNOWN)
+        field for field in required if getattr(document, field) in (None, "", PassengerSex.UNKNOWN)
     ]
     if document.document_type is IdentityDocumentType.UNKNOWN:
         missing.insert(0, "document_type")

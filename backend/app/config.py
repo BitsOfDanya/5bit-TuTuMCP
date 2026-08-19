@@ -20,10 +20,9 @@ class DatabaseSettings(BaseSettings):
 
 
 class Settings(DatabaseSettings):
-    openai_api_key: SecretStr = SecretStr("")
-    openai_model: str = "gpt-5.6-luna"
-    document_extraction_model: str = "gpt-5.6-luna"
-    agent_system_prompt: str = "You are a helpful assistant. Be concise and accurate."
+    ai_service_url: str = "http://127.0.0.1:8020"
+    ai_service_token: SecretStr = SecretStr("")
+    ai_service_timeout_seconds: float = 90.0
     auth_secret_key: SecretStr = SecretStr("local-development-key-change-me-please")
     auth_cookie_name: str = "tutumcp_session"
     auth_debug: bool = True

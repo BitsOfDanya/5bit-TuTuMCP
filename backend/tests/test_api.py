@@ -6,9 +6,12 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agent import get_agent
+from app.ai_client import (
+    AIChatResult,
+    AIDocumentResult,
+    get_ai_service_client,
+)
 from app.database import initialize_database
-from app.document_extraction import get_document_extractor
 from app.main import app
 from app.schemas import (
     AgentTurn,
@@ -20,18 +23,24 @@ from app.schemas import (
     TravelPlan,
     TravelService,
     TripDetails,
+    missing_document_fields,
+    missing_trip_fields,
 )
+from app.travel_rules import next_travel_action, search_redirect_url
 
 USER_ID = uuid4()
 OTHER_USER_ID = uuid4()
 
 
-class FakeAgent:
-    async def ainvoke(self, payload: dict[str, Any]) -> dict[str, Any]:
+class FakeAIServiceClient:
+    async def chat(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        current_trip: TripDetails,
+    ) -> AIChatResult:
         user_message = next(
-            message["content"]
-            for message in reversed(payload["messages"])
-            if message["role"] == "user"
+            message["content"] for message in reversed(messages) if message["role"] == "user"
         )
         if "международ" in user_message.lower():
             turn = AgentTurn(
@@ -67,9 +76,18 @@ class FakeAgent:
                 ),
             )
 
-        return {
-            "structured_response": turn,
-            "plan": TravelPlan(
+        values = current_trip.model_dump()
+        values.update(turn.trip.model_dump(exclude_none=True))
+        trip = TripDetails.model_validate(values)
+        missing = missing_trip_fields(trip)
+        next_action = next_travel_action(trip)
+        return AIChatResult(
+            response=turn.assistant_message,
+            trip=trip,
+            missing_fields=missing,
+            is_complete=not missing,
+            next_action=next_action,
+            plan=TravelPlan(
                 objective="Обновить поездку и определить следующий шаг.",
                 steps=[
                     PlanStep(
@@ -86,13 +104,14 @@ class FakeAgent:
                     ),
                 ],
             ),
-            "tools_used": ["validate_trip_details", "determine_next_action"],
-        }
+            tools_used=["validate_trip_details", "determine_next_action"],
+            redirect_url=(
+                search_redirect_url(trip) if next_action.value == "redirect_to_search" else None
+            ),
+        )
 
-
-class FakeDocumentExtractor:
-    async def extract(self, **_: Any) -> PassengerDocumentData:
-        return PassengerDocumentData(
+    async def extract_document(self, **_: Any) -> AIDocumentResult:
+        document = PassengerDocumentData(
             document_type=IdentityDocumentType.INTERNATIONAL_PASSPORT,
             last_name="ИВАНОВ",
             first_name="ИВАН",
@@ -106,13 +125,19 @@ class FakeDocumentExtractor:
             expiration_date=date(2031, 5, 10),
             issuing_country="RUS",
         )
+        missing = missing_document_fields(document)
+        return AIDocumentResult(
+            media_type="image/png",
+            document=document,
+            missing_fields=missing,
+            manual_review_required=bool(missing or document.warnings),
+        )
 
 
 @pytest.fixture
 def client() -> TestClient:
     asyncio.run(initialize_database())
-    app.dependency_overrides[get_agent] = FakeAgent
-    app.dependency_overrides[get_document_extractor] = FakeDocumentExtractor
+    app.dependency_overrides[get_ai_service_client] = FakeAIServiceClient
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -157,9 +182,7 @@ def test_chat_returns_plan_and_persists_history(client: TestClient) -> None:
     assert second_body["next_action"] == "redirect_to_search"
     assert second_body["redirect_url"].startswith("/search/train?")
 
-    history = client.get(
-        f"/api/v1/agent/users/{USER_ID}/sessions/{session_id}"
-    ).json()
+    history = client.get(f"/api/v1/agent/users/{USER_ID}/sessions/{session_id}").json()
     assert [message["role"] for message in history["messages"]] == [
         "user",
         "assistant",
