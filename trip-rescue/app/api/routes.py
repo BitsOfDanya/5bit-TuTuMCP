@@ -25,6 +25,9 @@ from app.api.schemas import (
     RawRescueResponse,
     RescuePersonalizationSummary,
 )
+from app.explanations.rescue import (
+    attach_rescue_explanations,
+)
 from app.graph.builder import (
     rescue_graph,
 )
@@ -217,6 +220,7 @@ async def rescue_from_text_public(
         profile_id=(
             request.preference_profile_id
         ),
+        baseline_journey=journey,
     )
 
 
@@ -267,6 +271,7 @@ async def rescue_from_spec_public(
         profile_id=(
             request.preference_profile_id
         ),
+        baseline_journey=journey,
     )
 
 
@@ -274,21 +279,39 @@ def _to_personalized_public(
     *,
     result: RawRescueResponse,
     profile_id: str | None,
+    baseline_journey: JourneyOption,
 ) -> PublicRescueResponse:
-
-    if not profile_id:
-        return to_public_response(
-            result
-        )
 
     clean_profile_id = (
         profile_id.strip()
+        if profile_id
+        else ""
     )
 
+    # ---------------------------------------------------------
+    # No preference profile
+    # ---------------------------------------------------------
+
     if not clean_profile_id:
-        return to_public_response(
-            result
+        public = (
+            to_public_response(
+                result
+            )
         )
+
+        return (
+            attach_rescue_explanations(
+                public=public,
+                result=result,
+                baseline_journey=(
+                    baseline_journey
+                ),
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Resolve preference profile
+    # ---------------------------------------------------------
 
     store = (
         get_preference_store()
@@ -297,6 +320,10 @@ def _to_personalized_public(
     profile = store.get(
         clean_profile_id
     )
+
+    # ---------------------------------------------------------
+    # Profile requested but not learned yet
+    # ---------------------------------------------------------
 
     if profile is None:
         public = (
@@ -315,7 +342,19 @@ def _to_personalized_public(
             )
         )
 
-        return public
+        return (
+            attach_rescue_explanations(
+                public=public,
+                result=result,
+                baseline_journey=(
+                    baseline_journey
+                ),
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Nothing to rerank
+    # ---------------------------------------------------------
 
     candidates = (
         result.execution.candidates
@@ -340,7 +379,19 @@ def _to_personalized_public(
             )
         )
 
-        return public
+        return (
+            attach_rescue_explanations(
+                public=public,
+                result=result,
+                baseline_journey=(
+                    baseline_journey
+                ),
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Personalized reranking
+    # ---------------------------------------------------------
 
     ranked = (
         rerank_rescue_candidates(
@@ -366,6 +417,10 @@ def _to_personalized_public(
         for item
         in ranked
     }
+
+    # ---------------------------------------------------------
+    # Attach ranking metadata and preference reasons
+    # ---------------------------------------------------------
 
     for candidate in (
         public.candidates
@@ -412,7 +467,29 @@ def _to_personalized_public(
         )
     )
 
-    return public
+    # ---------------------------------------------------------
+    # Decision Explanation is intentionally attached LAST.
+    #
+    # At this point:
+    # - domain ranking is final;
+    # - personalization metadata exists;
+    # - preference reasons exist;
+    # - rescue insights exist;
+    # - fallback relaxations exist.
+    #
+    # Explanation can therefore describe the complete
+    # decision without changing any decision logic.
+    # ---------------------------------------------------------
+
+    return (
+        attach_rescue_explanations(
+            public=public,
+            result=result,
+            baseline_journey=(
+                baseline_journey
+            ),
+        )
+    )
 
 
 async def _run_graph(

@@ -14,6 +14,9 @@ from pydantic import (
     Field,
 )
 
+from app.explanations.models import (
+    DecisionExplanation,
+)
 from app.models.rescue import (
     RescueComponent,
     RescueExecutionResult,
@@ -276,6 +279,11 @@ class PublicRescueCandidate(BaseModel):
 
     personalization: (
         CandidatePersonalization
+        | None
+    ) = None
+
+    explanation: (
+        DecisionExplanation
         | None
     ) = None
 

@@ -12,6 +12,12 @@ from app.api.schemas import (
     PublicJourneyOption,
     PublicTransportSegment,
 )
+from app.explanations.engine import (
+    build_decision_explanation,
+)
+from app.explanations.models import (
+    DecisionExplanation,
+)
 from app.models.journey import (
     HotelOption,
     JourneyOption,
@@ -80,17 +86,12 @@ class PublicWhatIfCandidate(
 
     impact: PublicWhatIfImpact
 
+    explanation: DecisionExplanation
+
 
 class PublicWhatIfResponse(
     BaseModel
 ):
-    """
-    Frontend-safe What-if response.
-
-    A What-if response is always simulation-only.
-    Nothing here means that a trip was committed.
-    """
-
     simulation: Literal[True] = True
 
     status: WhatIfStatus
@@ -137,7 +138,15 @@ def to_public_whatif_response(
         ),
         candidates=[
             to_public_whatif_candidate(
-                candidate
+                candidate=candidate,
+                trip=(
+                    result
+                    .hypothetical_trip
+                ),
+                baseline=(
+                    result
+                    .baseline_journey
+                ),
             )
             for candidate
             in result.candidates
@@ -146,8 +155,31 @@ def to_public_whatif_response(
 
 
 def to_public_whatif_candidate(
+    *,
     candidate: WhatIfCandidate,
+    trip: TripSpec,
+    baseline: JourneyOption,
 ) -> PublicWhatIfCandidate:
+    explanation = (
+        build_decision_explanation(
+            trip=trip,
+            baseline=baseline,
+            candidate=(
+                candidate.journey
+            ),
+            preserved_components=list(
+                candidate
+                .impact
+                .components_preserved
+            ),
+            changed_components=list(
+                candidate
+                .impact
+                .components_changed
+            ),
+        )
+    )
+
     return PublicWhatIfCandidate(
         id=candidate.id,
         rank=candidate.rank,
@@ -161,6 +193,7 @@ def to_public_whatif_candidate(
                 candidate.impact
             )
         ),
+        explanation=explanation,
     )
 
 
