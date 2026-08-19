@@ -6,6 +6,7 @@ from typing import Any
 
 import jwt
 from pwdlib import PasswordHash
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.config import Settings
@@ -31,6 +32,36 @@ class InvalidCodeError(AuthError):
 
 class InvalidCredentialsError(AuthError):
     pass
+
+
+class UserAlreadyExistsError(AuthError):
+    pass
+
+
+def register_user(
+    session: Session,
+    name: str,
+    email: str,
+    password: str,
+) -> User:
+    existing_user = session.exec(select(User).where(User.login == email)).first()
+    if existing_user is not None:
+        raise UserAlreadyExistsError("Аккаунт с такой почтой уже существует.")
+
+    user = User(
+        login=email,
+        display_name=name,
+        password_hash=PASSWORD_HASHER.hash(password),
+        created_at=int(time.time()),
+    )
+    session.add(user)
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise UserAlreadyExistsError("Аккаунт с такой почтой уже существует.") from exc
+    session.refresh(user)
+    return user
 
 
 def create_code_challenge(
@@ -101,19 +132,7 @@ def authenticate_with_password(
 ) -> User:
     user = session.exec(select(User).where(User.login == email)).first()
 
-    if user is None:
-        user = User(
-            login=email,
-            display_name=_display_name(email),
-            password_hash=PASSWORD_HASHER.hash(password),
-            created_at=int(time.time()),
-        )
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-        return user
-
-    if user.password_hash is None:
+    if user is None or user.password_hash is None:
         raise InvalidCredentialsError("Неверная почта или пароль.")
 
     is_valid, updated_hash = PASSWORD_HASHER.verify_and_update(password, user.password_hash)

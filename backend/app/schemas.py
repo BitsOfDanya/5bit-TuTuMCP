@@ -326,6 +326,18 @@ class PasswordAuthRequest(BaseModel):
         return normalized
 
 
+class RegisterRequest(PasswordAuthRequest):
+    name: str = Field(min_length=2, max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized) < 2:
+            raise ValueError("Enter your name")
+        return normalized
+
+
 class UserResponse(BaseModel):
     id: str
     login: str

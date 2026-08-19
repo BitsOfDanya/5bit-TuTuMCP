@@ -1,10 +1,15 @@
 import { ArrowLeft, Eye, EyeOff, X } from "lucide-react";
 import { FormEvent, useState } from "react";
 
-import { passwordAuth, requestCode, verifyCode } from "../api/auth";
+import {
+  passwordAuth,
+  registerAccount,
+  requestCode,
+  verifyCode,
+} from "../api/auth";
 import type { User } from "../types";
 
-type AuthMode = "identifier" | "code" | "password";
+type AuthMode = "identifier" | "code" | "password" | "register";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -26,6 +31,10 @@ export function AuthModal({
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [registrationEmail, setRegistrationEmail] = useState("");
+  const [registrationPassword, setRegistrationPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [isPasswordVisible, setPasswordVisible] = useState(false);
   const [isSubmitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -39,6 +48,8 @@ export function AuthModal({
     setError("");
     setCode("");
     setPassword("");
+    setRegistrationPassword("");
+    setPasswordConfirmation("");
     setDebugCode(null);
     onClose();
   }
@@ -82,6 +93,28 @@ export function AuthModal({
     setError("");
     try {
       const result = await passwordAuth(email, password);
+      if (result.user) {
+        onAuthenticated(result.user);
+        closeModal();
+      }
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (registrationPassword !== passwordConfirmation) {
+      setError("Пароли не совпадают.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await registerAccount(name, registrationEmail, registrationPassword);
       if (result.user) {
         onAuthenticated(result.user);
         closeModal();
@@ -169,6 +202,16 @@ export function AuthModal({
             >
               Войти другим способом
             </button>
+            <button
+              className="auth-switch-button"
+              type="button"
+              onClick={() => {
+                setError("");
+                setMode("register");
+              }}
+            >
+              Зарегистрироваться по почте
+            </button>
             <div className="social-auth">
               <span>или войдите с помощью</span>
               <div>
@@ -198,7 +241,9 @@ export function AuthModal({
           <>
             <h2 id="auth-title">Введите код</h2>
             <p className="auth-description">
-              Мы отправили шестизначный код на <strong>{login}</strong>
+              {debugCode
+                ? "В локальном режиме письмо не отправляется — используйте код ниже."
+                : <>Мы отправили шестизначный код на <strong>{login}</strong></>}
             </p>
             {debugCode ? (
               <p className="debug-code">Код для локальной разработки: {debugCode}</p>
@@ -278,9 +323,93 @@ export function AuthModal({
               </button>
             </form>
             <p className="password-help">
-              Если аккаунта ещё нет, мы создадим его для этой почты.
+              Нет аккаунта?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setRegistrationEmail(email);
+                  setMode("register");
+                }}
+              >
+                Зарегистрироваться
+              </button>
             </p>
             <AuthLegal copy="Войти" />
+          </>
+        ) : null}
+
+        {mode === "register" ? (
+          <>
+            <h2 id="auth-title">Создайте аккаунт</h2>
+            <p className="auth-description">
+              Регистрация работает по почте и паролю — код подтверждения не нужен.
+            </p>
+            <form className="auth-form" onSubmit={handleRegistration}>
+              <label className="visually-hidden" htmlFor="registration-name">
+                Имя
+              </label>
+              <input
+                autoFocus
+                id="registration-name"
+                type="text"
+                placeholder="Ваше имя"
+                autoComplete="name"
+                minLength={2}
+                maxLength={80}
+                required
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+              <label className="visually-hidden" htmlFor="registration-email">
+                Электронная почта
+              </label>
+              <input
+                id="registration-email"
+                type="email"
+                placeholder="Ваша почта"
+                autoComplete="email"
+                required
+                value={registrationEmail}
+                onChange={(event) => setRegistrationEmail(event.target.value)}
+              />
+              <label className="visually-hidden" htmlFor="registration-password">
+                Придумайте пароль
+              </label>
+              <input
+                id="registration-password"
+                type="password"
+                placeholder="Придумайте пароль"
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                required
+                value={registrationPassword}
+                onChange={(event) => setRegistrationPassword(event.target.value)}
+              />
+              <label className="visually-hidden" htmlFor="registration-password-confirmation">
+                Повторите пароль
+              </label>
+              <input
+                id="registration-password-confirmation"
+                type="password"
+                placeholder="Повторите пароль"
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                required
+                value={passwordConfirmation}
+                onChange={(event) => setPasswordConfirmation(event.target.value)}
+              />
+              <button
+                className="primary-auth-button"
+                disabled={isSubmitting}
+                type="submit"
+              >
+                {isSubmitting ? "Создаём аккаунт…" : "Зарегистрироваться"}
+              </button>
+            </form>
+            <AuthLegal copy="Зарегистрироваться" />
           </>
         ) : null}
 

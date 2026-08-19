@@ -1200,6 +1200,17 @@ button:disabled {
   background: #eae7fa;
 }
 
+.auth-switch-button {
+  width: 100%;
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  color: #6049dc;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .social-auth {
   display: grid;
   gap: 12px;
@@ -1240,6 +1251,7 @@ button:disabled {
 }
 
 .auth-legal button,
+.password-help button,
 .forgot-password {
   padding: 0;
   border: 0;
@@ -1303,6 +1315,14 @@ button:disabled {
   margin: 12px 0 0;
   color: var(--muted);
   font-size: 11px;
+}
+
+.password-help button {
+  padding: 0;
+  border: 0;
+  color: #654ee0;
+  background: transparent;
+  font-size: inherit;
 }
 
 .auth-error {
