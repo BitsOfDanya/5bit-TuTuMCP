@@ -17,7 +17,9 @@ class ConstraintChange(BaseModel):
     old_value: Any = None
     new_value: Any = None
 
-    magnitude: float = Field(ge=0)
+    magnitude: float = Field(
+        ge=0
+    )
 
 
 class RelaxationPlan(BaseModel):
@@ -25,8 +27,18 @@ class RelaxationPlan(BaseModel):
 
     changes: list[ConstraintChange]
 
-    score: float = Field(ge=0)
+    score: float = Field(
+        ge=0
+    )
 
+    # Готовый TripSpec после применения карточки.
+    #
+    # Frontend НЕ должен сам разбираться,
+    # что менять в исходном запросе.
+    new_trip_spec: TripSpec
+
+    # Реальный вариант Туту, который становится
+    # допустимым после этого изменения.
     journey: JourneyOption
 
 
@@ -39,6 +51,10 @@ class NegotiationResult(BaseModel):
 
     trip_spec: TripSpec
 
-    journeys: list[JourneyOption] = Field(default_factory=list)
+    journeys: list[JourneyOption] = Field(
+        default_factory=list
+    )
 
-    alternatives: list[RelaxationPlan] = Field(default_factory=list)
+    alternatives: list[RelaxationPlan] = Field(
+        default_factory=list
+    )

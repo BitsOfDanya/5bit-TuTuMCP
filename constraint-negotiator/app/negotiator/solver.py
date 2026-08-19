@@ -1,9 +1,14 @@
+from __future__ import annotations
+
+from collections import defaultdict
+
 from app.models.journey import JourneyOption
 from app.models.relaxation import (
     NegotiationResult,
     RelaxationPlan,
 )
-from app.models.trip import TripSpec
+from app.models.trip import ConstraintField, TripSpec
+from app.negotiator.applier import build_relaxed_trip
 from app.negotiator.feasibility import evaluate_constraints
 from app.negotiator.scorer import score_plan
 
@@ -14,10 +19,30 @@ class ConstraintNegotiator:
         trip: TripSpec,
         journeys: list[JourneyOption],
         limit: int = 3,
+        allow_multi_constraint: bool = False,
     ) -> NegotiationResult:
+        """
+        Core Constraint Negotiator.
+
+        Default product behaviour:
+
+        1. If feasible journeys exist -> return them.
+        2. Otherwise find journeys requiring exactly ONE relaxed constraint.
+        3. Return at most one best suggestion per constraint type.
+        4. Do NOT silently fill missing slots with multi-constraint proposals.
+
+        Multi-constraint negotiation can later be enabled explicitly.
+        """
 
         feasible: list[JourneyOption] = []
-        plans: list[RelaxationPlan] = []
+
+        single_constraint_plans: list[
+            RelaxationPlan
+        ] = []
+
+        multi_constraint_plans: list[
+            RelaxationPlan
+        ] = []
 
         for journey in journeys:
             changes = evaluate_constraints(
@@ -25,33 +50,69 @@ class ConstraintNegotiator:
                 journey=journey,
             )
 
+            # -------------------------------------------------
+            # Already feasible
+            # -------------------------------------------------
+
             if not changes:
-                feasible.append(journey)
+                feasible.append(
+                    journey
+                )
                 continue
 
+            # -------------------------------------------------
+            # Never relax HARD constraints
+            # -------------------------------------------------
+
             violates_hard_constraint = any(
-                change.field in trip.hard_constraints
+                change.field
+                in trip.hard_constraints
                 for change in changes
             )
 
             if violates_hard_constraint:
                 continue
 
+            relaxed_trip = build_relaxed_trip(
+                trip=trip,
+                journey=journey,
+                changes=changes,
+            )
+
             plan = RelaxationPlan(
-                id=f"relax-{journey.id}",
+                id=(
+                    f"relax-"
+                    f"{journey.id}"
+                ),
                 changes=changes,
                 score=score_plan(
                     trip=trip,
                     changes=changes,
                 ),
+                new_trip_spec=relaxed_trip,
                 journey=journey,
             )
 
-            plans.append(plan)
+            if len(changes) == 1:
+                single_constraint_plans.append(
+                    plan
+                )
+            else:
+                multi_constraint_plans.append(
+                    plan
+                )
+
+        # -----------------------------------------------------
+        # Exact solutions exist
+        # -----------------------------------------------------
 
         if feasible:
             feasible.sort(
-                key=lambda item: item.total_price
+                key=lambda item: (
+                    item.total_price,
+                    item.outbound.departure,
+                    item.inbound.arrival,
+                )
             )
 
             return NegotiationResult(
@@ -61,65 +122,144 @@ class ConstraintNegotiator:
                 alternatives=[],
             )
 
-        if not plans:
+        # -----------------------------------------------------
+        # Pick the BEST single relaxation for each field
+        # -----------------------------------------------------
+
+        selected = (
+            self._select_best_single_plans(
+                plans=single_constraint_plans,
+                limit=limit,
+            )
+        )
+
+        # -----------------------------------------------------
+        # Multi constraint is NOT used by default.
+        #
+        # This is intentional:
+        #
+        # "Change ONE thing and your trip becomes possible."
+        # -----------------------------------------------------
+
+        if (
+            allow_multi_constraint
+            and len(selected) < limit
+        ):
+            remaining = (
+                limit - len(selected)
+            )
+
+            selected.extend(
+                self._select_best_multi_plans(
+                    plans=multi_constraint_plans,
+                    limit=remaining,
+                )
+            )
+
+        if selected:
             return NegotiationResult(
-                status="no_options",
+                status="negotiation_required",
                 trip_spec=trip,
                 journeys=[],
-                alternatives=[],
+                alternatives=selected,
             )
-
-        plans.sort(
-            key=lambda item: (
-                len(item.changes),
-                item.score,
-                item.journey.total_price,
-            )
-        )
-
-        selected = self._select_diverse_plans(
-            plans=plans,
-            limit=limit,
-        )
 
         return NegotiationResult(
-            status="negotiation_required",
+            status="no_options",
             trip_spec=trip,
             journeys=[],
-            alternatives=selected,
+            alternatives=[],
         )
 
     @staticmethod
-    def _select_diverse_plans(
+    def _select_best_single_plans(
         plans: list[RelaxationPlan],
         limit: int,
     ) -> list[RelaxationPlan]:
+        """
+        Pick one strongest proposal per constraint type.
 
-        selected: list[RelaxationPlan] = []
-        used_primary_fields: set[str] = set()
+        Example:
+
+        budget:
+            +7314 ₽
+            +9200 ₽
+            +15000 ₽
+
+        We only show +7314 ₽.
+
+        Then compare that against best:
+            departure relaxation
+            return relaxation
+            transport relaxation
+            etc.
+        """
+
+        grouped: dict[
+            ConstraintField,
+            list[RelaxationPlan],
+        ] = defaultdict(list)
 
         for plan in plans:
-            if not plan.changes:
+            if len(plan.changes) != 1:
                 continue
 
-            primary = plan.changes[0].field.value
+            field = (
+                plan.changes[0].field
+            )
 
-            if primary in used_primary_fields:
-                continue
+            grouped[field].append(
+                plan
+            )
 
-            selected.append(plan)
-            used_primary_fields.add(primary)
+        best_per_field: list[
+            RelaxationPlan
+        ] = []
 
-            if len(selected) >= limit:
-                return selected
+        for field_plans in grouped.values():
+            field_plans.sort(
+                key=lambda plan: (
+                    plan.score,
+                    plan.journey.total_price,
+                    plan.journey.outbound.departure,
+                    plan.journey.inbound.arrival,
+                )
+            )
 
-        for plan in plans:
-            if plan in selected:
-                continue
+            best_per_field.append(
+                field_plans[0]
+            )
 
-            selected.append(plan)
+        best_per_field.sort(
+            key=lambda plan: (
+                plan.score,
+                plan.journey.total_price,
+            )
+        )
 
-            if len(selected) >= limit:
-                break
+        return best_per_field[
+            :limit
+        ]
 
-        return selected
+    @staticmethod
+    def _select_best_multi_plans(
+        plans: list[RelaxationPlan],
+        limit: int,
+    ) -> list[RelaxationPlan]:
+        """
+        Future P1 mode.
+
+        Multi-constraint plans are intentionally separated from
+        the primary product flow.
+        """
+
+        plans = sorted(
+            plans,
+            key=lambda plan: (
+                len(plan.changes),
+                plan.score,
+                plan.journey.total_price,
+            ),
+        )
+
+        return plans[:limit]
