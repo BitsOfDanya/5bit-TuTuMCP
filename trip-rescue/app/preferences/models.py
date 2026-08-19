@@ -1,20 +1,30 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import (
+    datetime,
+    timezone,
+)
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    Field,
+)
 
 
-class PreferenceAction(str, Enum):
+class PreferenceAction(
+    str,
+    Enum,
+):
     LIKE = "like"
     DISLIKE = "dislike"
-
     CHOOSE = "choose"
     REJECT = "reject"
 
 
-class PreferenceWeights(BaseModel):
+class PreferenceWeights(
+    BaseModel
+):
     """
     Learned importance of generic journey properties.
 
@@ -51,7 +61,9 @@ class PreferenceWeights(BaseModel):
     )
 
 
-class PreferenceProfile(BaseModel):
+class PreferenceProfile(
+    BaseModel
+):
     profile_id: str
 
     version: int = Field(
@@ -65,7 +77,9 @@ class PreferenceProfile(BaseModel):
     )
 
     weights: PreferenceWeights = Field(
-        default_factory=PreferenceWeights
+        default_factory=(
+            PreferenceWeights
+        )
     )
 
     # Keys are transport mode values:
@@ -92,6 +106,28 @@ class PreferenceProfile(BaseModel):
         default_factory=dict
     )
 
+    # ---------------------------------------------------------
+    # Cold Start metadata
+    # ---------------------------------------------------------
+
+    cold_start_completed: bool = False
+
+    cold_start_answers: int = Field(
+        default=0,
+        ge=0,
+    )
+
+    cold_start_confidence: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+    )
+
+    cold_start_completed_at: (
+        datetime
+        | None
+    ) = None
+
     updated_at: datetime = Field(
         default_factory=lambda: (
             datetime.now(
@@ -101,7 +137,9 @@ class PreferenceProfile(BaseModel):
     )
 
 
-class PreferenceLearningResult(BaseModel):
+class PreferenceLearningResult(
+    BaseModel
+):
     profile: PreferenceProfile
 
     learned_signals: list[

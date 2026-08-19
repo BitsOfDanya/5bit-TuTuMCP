@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import (
     APIRouter,
     HTTPException,
+    Query,
 )
 from pydantic import (
     BaseModel,
@@ -14,6 +15,15 @@ from app.api.mapper import (
 )
 from app.api.schemas import (
     CurrentJourneyInput,
+)
+from app.preferences.cold_start import (
+    ColdStartChoice,
+    ColdStartQuestion,
+    get_cold_start_questions,
+)
+from app.preferences.cold_start_service import (
+    ColdStartCompletion,
+    ColdStartService,
 )
 from app.preferences.learner import (
     get_preference_learner,
@@ -104,7 +114,112 @@ class PreferenceResetResponse(
     BaseModel
 ):
     status: str
+
     profile_id: str
+
+
+class ColdStartQuestionsResponse(
+    BaseModel
+):
+    total: int
+
+    minimum_choices: int = 4
+
+    questions: list[
+        ColdStartQuestion
+    ]
+
+
+class ColdStartCompleteRequest(
+    BaseModel
+):
+    profile_id: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    choices: list[
+        ColdStartChoice
+    ] = Field(
+        min_length=1,
+        max_length=6,
+    )
+
+    replace: bool = False
+
+
+# ============================================================
+# Cold Start
+#
+# IMPORTANT:
+# Static routes are declared BEFORE /{profile_id}
+# so FastAPI never interprets "cold-start" as profile_id.
+# ============================================================
+
+
+@router.get(
+    "/cold-start/questions",
+    response_model=(
+        ColdStartQuestionsResponse
+    ),
+)
+async def cold_start_questions(
+    limit: int = Query(
+        default=6,
+        ge=1,
+        le=6,
+    ),
+) -> ColdStartQuestionsResponse:
+    questions = (
+        get_cold_start_questions(
+            limit=limit
+        )
+    )
+
+    return (
+        ColdStartQuestionsResponse(
+            total=len(
+                questions
+            ),
+            minimum_choices=min(
+                4,
+                len(questions),
+            ),
+            questions=questions,
+        )
+    )
+
+
+@router.post(
+    "/cold-start/complete",
+    response_model=ColdStartCompletion,
+)
+async def complete_cold_start(
+    request: ColdStartCompleteRequest,
+) -> ColdStartCompletion:
+    try:
+        service = (
+            ColdStartService()
+        )
+
+        return service.complete(
+            profile_id=(
+                request.profile_id
+            ),
+            choices=request.choices,
+            replace=request.replace,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+
+# ============================================================
+# Feedback learning
+# ============================================================
 
 
 @router.post(
@@ -118,7 +233,6 @@ async def preference_feedback(
         PreferenceFeedbackRequest
     ),
 ) -> PreferenceLearningResult:
-
     candidate = (
         to_domain_journey(
             request.candidate
@@ -154,57 +268,11 @@ async def preference_feedback(
         ) from exc
 
 
-@router.get(
-    "/{profile_id}",
-    response_model=(
-        PreferenceProfile
-    ),
-)
-async def get_profile(
-    profile_id: str,
-) -> PreferenceProfile:
-
-    profile = (
-        get_preference_store()
-        .get(
-            profile_id
-        )
-    )
-
-    if profile is None:
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "Preference profile "
-                "not found"
-            ),
-        )
-
-    return profile
-
-
-@router.delete(
-    "/{profile_id}",
-    response_model=(
-        PreferenceResetResponse
-    ),
-)
-async def reset_profile(
-    profile_id: str,
-) -> PreferenceResetResponse:
-
-    store = (
-        get_preference_store()
-    )
-
-    store.reset(
-        profile_id
-    )
-
-    return PreferenceResetResponse(
-        status="reset",
-        profile_id=profile_id,
-    )
+# ============================================================
+# Reranking
+#
+# Keep before /{profile_id} for explicit routing clarity.
+# ============================================================
 
 
 @router.post(
@@ -218,7 +286,6 @@ async def rerank_preferences(
         PreferenceRerankRequest
     ),
 ) -> PreferenceRerankResponse:
-
     store = (
         get_preference_store()
     )
@@ -277,4 +344,60 @@ async def rerank_preferences(
                 in ranked
             ],
         )
+    )
+
+
+# ============================================================
+# Profile
+# ============================================================
+
+
+@router.get(
+    "/{profile_id}",
+    response_model=(
+        PreferenceProfile
+    ),
+)
+async def get_profile(
+    profile_id: str,
+) -> PreferenceProfile:
+    profile = (
+        get_preference_store()
+        .get(
+            profile_id
+        )
+    )
+
+    if profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Preference profile "
+                "not found"
+            ),
+        )
+
+    return profile
+
+
+@router.delete(
+    "/{profile_id}",
+    response_model=(
+        PreferenceResetResponse
+    ),
+)
+async def reset_profile(
+    profile_id: str,
+) -> PreferenceResetResponse:
+    store = (
+        get_preference_store()
+    )
+
+    store.reset(
+        profile_id
+    )
+
+    return PreferenceResetResponse(
+        status="reset",
+        profile_id=profile_id,
     )
