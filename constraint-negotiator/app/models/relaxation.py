@@ -25,20 +25,19 @@ class ConstraintChange(BaseModel):
 class RelaxationPlan(BaseModel):
     id: str
 
+    kind: Literal[
+        "single",
+        "combination",
+    ]
+
     changes: list[ConstraintChange]
 
     score: float = Field(
         ge=0
     )
 
-    # Готовый TripSpec после применения карточки.
-    #
-    # Frontend НЕ должен сам разбираться,
-    # что менять в исходном запросе.
     new_trip_spec: TripSpec
 
-    # Реальный вариант Туту, который становится
-    # допустимым после этого изменения.
     journey: JourneyOption
 
 
