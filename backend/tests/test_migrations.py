@@ -29,8 +29,14 @@ def test_alembic_migration_builds_current_schema(
 
     get_database_settings.cache_clear()
 
-    assert {"alembic_version", "conversations", "messages"} <= tables
-    assert revision == ("20260819_0001",)
+    assert {
+        "alembic_version",
+        "authchallenge",
+        "conversations",
+        "messages",
+        "user",
+    } <= tables
+    assert revision == ("20260819_0002",)
 
     command.downgrade(config, "base")
     with sqlite3.connect(database_path) as connection:

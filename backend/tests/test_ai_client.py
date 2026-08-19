@@ -20,9 +20,7 @@ class FakeAsyncClient:
         return None
 
     async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
-        FakeAsyncClient.request_kwargs.update(
-            {"method": method, "path": path, "request": kwargs}
-        )
+        FakeAsyncClient.request_kwargs.update({"method": method, "path": path, "request": kwargs})
         return httpx.Response(
             200,
             request=httpx.Request(method, f"http://ai:8020{path}"),
@@ -41,6 +39,7 @@ class FakeAsyncClient:
                     ],
                 },
                 "tools_used": ["validate_trip_details"],
+                "tool_statuses": {},
                 "redirect_url": None,
             },
         )

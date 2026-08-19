@@ -33,6 +33,7 @@ env/
 # Runtime data
 backend/.data/
 ai-service/.data/
+.local/
 
 # Node / frontend
 node_modules/

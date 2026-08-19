@@ -4,7 +4,10 @@ from typing import Any
 import pytest
 
 from app.domain.travel import TravelService, TripDetails
-from app.integrations.constraint_negotiator.client import ConstraintNegotiatorClient
+from app.integrations.constraint_negotiator.client import (
+    ConstraintNegotiatorClient,
+    compact_negotiation_result,
+)
 
 
 class FakeResponse:
@@ -79,3 +82,39 @@ async def test_skips_incomplete_one_way_trip() -> None:
         )
     )
     assert result["status"] == "skipped"
+
+
+def test_compacts_large_tutu_references_before_returning_to_agent() -> None:
+    payload = {
+        "status": "success",
+        "trip_spec": {"origin": "Москва", "destination": "Казань"},
+        "journeys": [
+            {
+                "id": "journey-1",
+                "total_price": 20_000,
+                "outbound": {
+                    "id": "out-1",
+                    "mode": "train",
+                    "departure": "2026-09-01T10:00:00+03:00",
+                    "checkout_ref": {"large": "payload" * 10_000},
+                },
+                "inbound": {
+                    "id": "back-1",
+                    "mode": "train",
+                    "details_ref": {"large": "payload" * 10_000},
+                },
+            }
+        ],
+        "alternatives": [],
+    }
+
+    compact = compact_negotiation_result(payload)
+
+    assert compact["status"] == "success"
+    assert compact["journeys"][0]["outbound"] == {
+        "id": "out-1",
+        "mode": "train",
+        "departure": "2026-09-01T10:00:00+03:00",
+    }
+    assert "checkout_ref" not in str(compact)
+    assert "details_ref" not in str(compact)

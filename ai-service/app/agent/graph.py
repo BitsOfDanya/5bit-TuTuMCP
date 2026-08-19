@@ -11,7 +11,7 @@ from app.agent.state import TravelWorkflowState
 from app.agent.tools.registry import build_travel_tools
 from app.core.config import get_settings
 from app.domain.travel import AgentTurn, TravelPlan
-from app.integrations.constraint_negotiator.client import ConstraintNegotiatorClient
+from app.integrations.constraint_negotiator.client import get_constraint_negotiator_client
 
 
 def build_travel_workflow(planner: Any, executor: Any) -> Any:
@@ -33,11 +33,9 @@ def get_agent() -> Any:
     model = ChatOpenAI(
         model=settings.openai_model,
         api_key=settings.openai_api_key.get_secret_value(),
+        reasoning_effort=settings.openai_reasoning_effort,
     )
-    negotiator = ConstraintNegotiatorClient(
-        settings.constraint_negotiator_url,
-        settings.constraint_negotiator_timeout_seconds,
-    )
+    negotiator = get_constraint_negotiator_client()
     planner = model.with_structured_output(TravelPlan)
     executor = create_agent(
         model=model,

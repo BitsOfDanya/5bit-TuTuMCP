@@ -9,6 +9,7 @@ class TravelWorkflowState(TypedDict, total=False):
     plan: TravelPlan
     structured_response: AgentTurn
     tools_used: list[str]
+    tool_statuses: dict[str, str]
     missing_fields: list[str]
     next_action: str
     redirect_url: str | None

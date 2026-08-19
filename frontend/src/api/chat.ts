@@ -17,6 +17,7 @@ export interface AgentChatResponse {
     | "redirect_to_search";
   redirect_url: string | null;
   tools_used: string[];
+  tool_statuses: Record<string, string>;
 }
 
 interface ApiErrorPayload {

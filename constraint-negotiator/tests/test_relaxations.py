@@ -16,6 +16,25 @@ from app.search.mock import MockJourneyProvider
 
 
 @pytest.mark.asyncio
+async def test_timezone_aware_constraints_are_compared_as_local_wall_clock() -> None:
+    trip = TripSpec(
+        origin="Москва",
+        destination="Казань",
+        outbound_date="2026-08-21",
+        return_date="2026-08-23",
+        outbound_after="19:00:00+03:00",
+        return_before="22:00:00+03:00",
+        travelers=1,
+        budget=30_000,
+    )
+    journeys = await MockJourneyProvider().search_candidates(trip)
+
+    violations = evaluate_constraints(trip=trip, journey=journeys[0])
+
+    assert isinstance(violations, list)
+
+
+@pytest.mark.asyncio
 async def test_budget_violation() -> None:
     trip = TripSpec(
         origin="Москва",

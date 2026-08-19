@@ -14,6 +14,7 @@ from app.domain.travel import (
     TravelService,
     TripDetails,
 )
+from app.integrations.constraint_negotiator.client import get_constraint_negotiator_client
 from app.integrations.openai.document_extractor import get_document_extractor
 from app.main import app
 
@@ -45,6 +46,7 @@ class FakeAgent:
             "missing_fields": [],
             "next_action": "redirect_to_search",
             "tools_used": ["validate_trip_details"],
+            "tool_statuses": {},
             "redirect_url": "/search/train?destination=Казань",
         }
 
@@ -66,10 +68,16 @@ class FakeExtractor:
         )
 
 
+class FakeConstraintNegotiator:
+    async def health(self) -> dict[str, str]:
+        return {"status": "ok", "service": "constraint-negotiator"}
+
+
 @pytest.fixture
 def client() -> TestClient:
     app.dependency_overrides[get_agent] = FakeAgent
     app.dependency_overrides[get_document_extractor] = FakeExtractor
+    app.dependency_overrides[get_constraint_negotiator_client] = FakeConstraintNegotiator
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -89,6 +97,15 @@ def test_health(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "jarvell-ai"}
+
+
+def test_readiness_checks_constraint_negotiator(client: TestClient) -> None:
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "dependencies": {"constraint-negotiator": "ok"},
+    }
 
 
 def test_document_contract(client: TestClient) -> None:

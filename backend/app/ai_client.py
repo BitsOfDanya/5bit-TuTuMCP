@@ -1,7 +1,8 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 import httpx
+from fastapi import Depends
 from pydantic import BaseModel
 
 from app.config import get_settings
@@ -22,6 +23,7 @@ class AIChatResult(BaseModel):
     next_action: AgentNextAction
     plan: TravelPlan
     tools_used: list[str]
+    tool_statuses: dict[str, str]
     redirect_url: str | None = None
 
 
@@ -61,6 +63,16 @@ class AIServiceClient:
             },
         )
         return AIChatResult.model_validate(response.json())
+
+    async def health(self) -> dict[str, str]:
+        response = await self._request("GET", "/health")
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AIServiceError("AI service returned an invalid health response.") from exc
+        if not isinstance(payload, dict) or payload.get("status") != "ok":
+            raise AIServiceError("AI service is not healthy.")
+        return {"status": "ok", "service": str(payload.get("service", "ai-service"))}
 
     async def extract_document(
         self,
@@ -110,3 +122,6 @@ def get_ai_service_client() -> AIServiceClient:
         settings.ai_service_token.get_secret_value(),
         settings.ai_service_timeout_seconds,
     )
+
+
+AIServiceClientDep = Annotated[AIServiceClient, Depends(get_ai_service_client)]

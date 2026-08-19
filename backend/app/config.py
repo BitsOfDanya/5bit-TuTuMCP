@@ -4,14 +4,17 @@ from pathlib import Path
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+SERVICE_DIR = Path(__file__).resolve().parents[1]
+ROOT_ENV_FILE = SERVICE_DIR.parent / ".env"
+ENV_FILE = SERVICE_DIR / ".env"
 DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[1] / ".data" / "tutumcp.db"
 
 
 class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=ENV_FILE,
+        env_file=(ROOT_ENV_FILE, ENV_FILE),
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
     )
 

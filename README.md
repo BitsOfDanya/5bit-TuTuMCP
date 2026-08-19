@@ -32,6 +32,40 @@ frontend -> backend :8000 -> ai-service :8020 -> OpenAI
 
 ## Запуск AI-сервисов
 
+### Быстрый локальный запуск
+
+Первичная установка всех Python/Node-зависимостей и миграций:
+
+```bash
+make setup
+```
+
+Укажите `OPENAI_API_KEY` в корневом `.env`, затем поднимите всю цепочку одной командой:
+
+```bash
+make dev
+```
+
+Команда запускает и дожидается готовности:
+
+- frontend — `http://127.0.0.1:5173`;
+- backend — `http://127.0.0.1:8000`;
+- constraint-negotiator — `http://127.0.0.1:8010`;
+- ai-service — `http://127.0.0.1:8020`.
+
+Логи находятся в `.local/logs`. Для реального end-to-end запроса через всю цепочку
+выполните в другом терминале:
+
+```bash
+make smoke
+```
+
+`make smoke` отправляет полный маршрут через Vite proxy и публичный backend API, проверяет
+сохранение истории, OpenAI-агента и инструмент `constraint-negotiator`. Вызов использует
+OpenAI API и внешний Tutu MCP.
+
+### Ручной запуск
+
 Сначала запустите constraint negotiator:
 
 ```bash
@@ -82,6 +116,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/agent/chat \
 Backend обращается к `AI_SERVICE_URL` (по умолчанию `http://127.0.0.1:8020`). Ответ содержит
 `session_id`, нормализованный `trip`, план, использованные инструменты,
 `next_action` и `redirect_url`. Для продолжения диалога передавайте тот же `session_id`.
+
+Readiness всей внутренней цепочки доступен на `GET http://127.0.0.1:8000/ready`.
 
 ## Frontend
 

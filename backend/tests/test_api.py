@@ -33,6 +33,9 @@ OTHER_USER_ID = uuid4()
 
 
 class FakeAIServiceClient:
+    async def health(self) -> dict[str, str]:
+        return {"status": "ok", "service": "jarvell-ai"}
+
     async def chat(
         self,
         *,
@@ -105,6 +108,7 @@ class FakeAIServiceClient:
                 ],
             ),
             tools_used=["validate_trip_details", "determine_next_action"],
+            tool_statuses={},
             redirect_url=(
                 search_redirect_url(trip) if next_action.value == "redirect_to_search" else None
             ),
@@ -147,6 +151,15 @@ def test_health(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_readiness_checks_ai_service(client: TestClient) -> None:
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "dependencies": {"ai-service": "ok"},
+    }
 
 
 def test_chat_returns_plan_and_persists_history(client: TestClient) -> None:

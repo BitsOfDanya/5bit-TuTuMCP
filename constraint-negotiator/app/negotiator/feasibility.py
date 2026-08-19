@@ -51,9 +51,11 @@ def evaluate_constraints(
     # ---------------------------------------------------------
 
     if trip.outbound_after is not None:
-        required_departure = datetime.combine(
-            trip.outbound_date,
-            trip.outbound_after,
+        required_departure = _as_local_naive(
+            datetime.combine(
+                trip.outbound_date,
+                trip.outbound_after,
+            )
         )
 
         actual_departure = _as_local_naive(
@@ -94,9 +96,11 @@ def evaluate_constraints(
     # ---------------------------------------------------------
 
     if trip.return_before is not None:
-        required_return = datetime.combine(
-            trip.return_date,
-            trip.return_before,
+        required_return = _as_local_naive(
+            datetime.combine(
+                trip.return_date,
+                trip.return_before,
+            )
         )
 
         actual_return = _as_local_naive(

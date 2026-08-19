@@ -1,7 +1,7 @@
 from datetime import date, time
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class TravelService(StrEnum):
@@ -12,6 +12,8 @@ class TravelService(StrEnum):
 
 
 class TripDetails(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     service_type: TravelService | None = None
     origin: str | None = None
     destination: str | None = None

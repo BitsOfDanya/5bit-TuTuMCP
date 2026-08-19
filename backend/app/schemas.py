@@ -4,13 +4,18 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class ReadinessResponse(BaseModel):
+    status: str
+    dependencies: dict[str, str]
 
 
 class TravelService(StrEnum):
@@ -22,6 +27,8 @@ class TravelService(StrEnum):
 
 class TripDetails(BaseModel):
     """Normalized search parameters collected from the conversation."""
+
+    model_config = ConfigDict(extra="forbid")
 
     service_type: TravelService | None = Field(
         default=None,
@@ -156,6 +163,7 @@ class AgentResponse(BaseModel):
     next_action: AgentNextAction
     plan: TravelPlan
     tools_used: list[str]
+    tool_statuses: dict[str, str]
     redirect_url: str | None = None
 
 

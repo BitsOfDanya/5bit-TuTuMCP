@@ -1,7 +1,9 @@
+from datetime import date, time
 from typing import Any
 from urllib.parse import urlencode
 
 from langchain.tools import tool
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.travel import (
     AgentNextAction,
@@ -9,6 +11,26 @@ from app.domain.travel import (
     TripDetails,
     missing_trip_fields,
 )
+
+
+class ToolTripDetails(BaseModel):
+    """Strict OpenAI tool input; unknown values are required and represented as null."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    service_type: TravelService | None
+    origin: str | None
+    destination: str | None
+    start_date: date | None
+    end_date: date | None
+    preferred_time: time | None
+    passengers: int | None = Field(ge=1, le=20)
+    budget: int | None = Field(ge=1)
+    currency: str = Field(min_length=3, max_length=3)
+    is_international: bool | None
+
+    def to_domain(self) -> TripDetails:
+        return TripDetails.model_validate(self.model_dump())
 
 
 def merge_trip_details(current: TripDetails, extracted: TripDetails) -> TripDetails:
@@ -60,18 +82,18 @@ def search_redirect_url(trip: TripDetails) -> str:
 
 
 @tool
-def validate_trip_details(trip: TripDetails) -> dict[str, Any]:
+def validate_trip_details(trip: ToolTripDetails) -> dict[str, Any]:
     """Validate normalized trip data and return missing fields and completeness."""
-    return validate_trip(trip)
+    return validate_trip(trip.to_domain())
 
 
 @tool
-def determine_next_action(trip: TripDetails) -> dict[str, str]:
+def determine_next_action(trip: ToolTripDetails) -> dict[str, str]:
     """Choose whether to collect fields, upload passenger documents, or open search."""
-    return {"next_action": next_travel_action(trip).value}
+    return {"next_action": next_travel_action(trip.to_domain()).value}
 
 
 @tool
-def build_search_redirect(trip: TripDetails) -> dict[str, str]:
+def build_search_redirect(trip: ToolTripDetails) -> dict[str, str]:
     """Build a relative internal search URL for a complete normalized trip."""
-    return {"redirect_url": search_redirect_url(trip)}
+    return {"redirect_url": search_redirect_url(trip.to_domain())}

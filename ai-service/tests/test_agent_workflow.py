@@ -5,6 +5,7 @@ import pytest
 from langchain_core.messages import ToolMessage
 
 from app.agent.graph import build_travel_workflow
+from app.agent.tools.travel import validate_trip_details
 from app.domain.travel import (
     AgentTurn,
     PlanAction,
@@ -86,3 +87,10 @@ def test_plan_allows_negotiation_before_redirect() -> None:
         ],
     )
     assert plan.steps[-2].action is PlanAction.NEGOTIATE_CONSTRAINTS
+
+
+def test_tool_schema_is_strict_for_openai() -> None:
+    schema = validate_trip_details.args_schema.model_json_schema()
+    trip_schema = schema["$defs"]["ToolTripDetails"]
+    assert trip_schema["additionalProperties"] is False
+    assert set(trip_schema["required"]) == set(trip_schema["properties"])

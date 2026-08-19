@@ -1,5 +1,5 @@
 from datetime import date
-from json import dumps
+from json import JSONDecodeError, dumps, loads
 from typing import Any
 
 from langchain_core.messages import ToolMessage
@@ -55,12 +55,16 @@ class TravelWorkflowNodes:
             for message in result.get("messages", [])
             if isinstance(message, ToolMessage) and message.name
         ]
-        return {"structured_response": turn, "tools_used": tools_used}
+        return {
+            "structured_response": turn,
+            "tools_used": tools_used,
+            "tool_statuses": tool_statuses_from_messages(result.get("messages", [])),
+        }
 
     def finalize(self, state: TravelWorkflowState) -> dict[str, Any]:
         turn = state["structured_response"]
         trip = merge_trip_details(state.get("current_trip", TripDetails()), turn.trip)
-        tool_input = {"trip": trip}
+        tool_input = {"trip": trip.model_dump(mode="json")}
         validation = validate_trip_details.invoke(tool_input)
         next_action = determine_next_action.invoke(tool_input)["next_action"]
         redirect_url = None
@@ -81,4 +85,21 @@ class TravelWorkflowNodes:
             "next_action": next_action,
             "redirect_url": redirect_url,
             "tools_used": list(dict.fromkeys(tools_used)),
+            "tool_statuses": state.get("tool_statuses", {}),
         }
+
+
+def tool_statuses_from_messages(messages: list[Any]) -> dict[str, str]:
+    statuses: dict[str, str] = {}
+    for message in messages:
+        if not isinstance(message, ToolMessage) or not message.name:
+            continue
+        payload: Any = message.content
+        if isinstance(payload, str):
+            try:
+                payload = loads(payload)
+            except JSONDecodeError:
+                continue
+        if isinstance(payload, dict) and isinstance(payload.get("status"), str):
+            statuses[message.name] = payload["status"]
+    return statuses

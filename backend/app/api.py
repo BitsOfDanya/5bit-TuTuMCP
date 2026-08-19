@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai_client import AIServiceClient, AIServiceError, get_ai_service_client
+from app.ai_client import AIServiceClientDep, AIServiceError
 from app.config import get_database_settings
 from app.conversations import (
     ConversationAccessError,
@@ -35,7 +35,6 @@ from app.travel_rules import next_travel_action, search_redirect_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
-AIClientDep = Annotated[AIServiceClient, Depends(get_ai_service_client)]
 DatabaseSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
 SessionLocksDep = Annotated[SessionLockRegistry, Depends(get_session_lock_registry)]
 DocumentUpload = Annotated[UploadFile, File(description="One PNG, JPEG, or PDF document.")]
@@ -44,7 +43,7 @@ DocumentUpload = Annotated[UploadFile, File(description="One PNG, JPEG, or PDF d
 @router.post("/chat")
 async def chat_with_agent(
     request: AgentRequest,
-    ai_client: AIClientDep,
+    ai_client: AIServiceClientDep,
     database_session: DatabaseSessionDep,
     session_locks: SessionLocksDep,
 ) -> AgentResponse:
@@ -100,6 +99,7 @@ async def chat_with_agent(
             next_action=result.next_action,
             plan=result.plan,
             tools_used=result.tools_used,
+            tool_statuses=result.tool_statuses,
             redirect_url=result.redirect_url,
         )
 
@@ -176,7 +176,7 @@ async def extract_passenger_document(
     user_id: UUID,
     session_id: UUID,
     document: DocumentUpload,
-    ai_client: AIClientDep,
+    ai_client: AIServiceClientDep,
     database_session: DatabaseSessionDep,
     session_locks: SessionLocksDep,
 ) -> PassengerDocumentExtractionResponse:

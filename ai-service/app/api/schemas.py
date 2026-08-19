@@ -24,6 +24,7 @@ class AIChatResponse(BaseModel):
     next_action: AgentNextAction
     plan: TravelPlan
     tools_used: list[str]
+    tool_statuses: dict[str, str]
     redirect_url: str | None = None
 
 
@@ -32,3 +33,8 @@ class DocumentExtractionResponse(BaseModel):
     document: PassengerDocumentData
     missing_fields: list[str]
     manual_review_required: bool
+
+
+class ReadinessResponse(BaseModel):
+    status: str
+    dependencies: dict[str, str]

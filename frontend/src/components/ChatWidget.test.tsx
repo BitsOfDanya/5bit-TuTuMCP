@@ -51,6 +51,7 @@ test("renders Markdown responses and continues the backend session", async () =>
         next_action: "collect_trip_details",
         redirect_url: null,
         tools_used: ["extract_trip_details"],
+        tool_statuses: {},
       });
     }),
   );
