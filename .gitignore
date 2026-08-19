@@ -25,6 +25,7 @@ dist/
 .venv/
 .venv-*/
 venv/
+venv/linux/
 env/
 
 # Local databases
