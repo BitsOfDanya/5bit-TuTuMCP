@@ -6,9 +6,11 @@ from app.auth_service import (
     AuthRateLimitError,
     InvalidCodeError,
     InvalidCredentialsError,
+    UserAlreadyExistsError,
     authenticate_with_password,
     create_code_challenge,
     create_session_token,
+    register_user,
     user_from_token,
     user_response,
     verify_code,
@@ -22,6 +24,7 @@ from app.schemas import (
     AuthSessionResponse,
     MessageResponse,
     PasswordAuthRequest,
+    RegisterRequest,
 )
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -73,6 +76,22 @@ def password_auth(
         user = authenticate_with_password(session, payload.email, payload.password)
     except InvalidCredentialsError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    _set_session_cookie(response, create_session_token(user, settings), settings)
+    return AuthSessionResponse(user=user_response(user))
+
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+def register(
+    payload: RegisterRequest,
+    response: Response,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> AuthSessionResponse:
+    try:
+        user = register_user(session, payload.name, payload.email, payload.password)
+    except UserAlreadyExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     _set_session_cookie(response, create_session_token(user, settings), settings)
     return AuthSessionResponse(user=user_response(user))

@@ -1,34 +1,62 @@
+from __future__ import annotations
+
 from datetime import date
 
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import (
+    END,
+    START,
+    StateGraph,
+)
 
-from app.ai.parser import TripParser
+from app.ai.parser import (
+    TripParser,
+    get_trip_parser,
+)
 from app.graph.state import NegotiatorState
 from app.models.journey import JourneyOption
 from app.models.trip import TripSpec
-from app.negotiator.solver import ConstraintNegotiator
+from app.negotiator.solver import (
+    ConstraintNegotiator,
+)
 from app.search.base import JourneyProvider
-from app.tutu.provider import TutuMCPJourneyProvider
+from app.tutu.provider import (
+    TutuMCPJourneyProvider,
+)
 
 
 def build_negotiator_graph(
-    parser: TripParser,
     provider: JourneyProvider,
     solver: ConstraintNegotiator,
+    parser: TripParser | None = None,
 ):
     async def resolve_trip(
         state: NegotiatorState,
     ) -> dict:
-        existing = state.get("trip_spec")
+        existing = state.get(
+            "trip_spec"
+        )
+
+        # ---------------------------------------------
+        # Structured request:
+        # LLM is not needed at all.
+        # ---------------------------------------------
 
         if existing is not None:
-            trip = TripSpec.model_validate(existing)
+            trip = TripSpec.model_validate(
+                existing
+            )
 
             return {
-                "trip_spec": trip.model_dump(
-                    mode="json"
+                "trip_spec": (
+                    trip.model_dump(
+                        mode="json"
+                    )
                 )
             }
+
+        # ---------------------------------------------
+        # Natural-language request
+        # ---------------------------------------------
 
         request_text = state.get(
             "request_text"
@@ -36,11 +64,14 @@ def build_negotiator_graph(
 
         if not request_text:
             raise ValueError(
-                "request_text or trip_spec is required"
+                "request_text or trip_spec "
+                "is required"
             )
 
-        reference_date_raw = state.get(
-            "reference_date"
+        reference_date_raw = (
+            state.get(
+                "reference_date"
+            )
         )
 
         reference_date = (
@@ -51,14 +82,22 @@ def build_negotiator_graph(
             else date.today()
         )
 
-        trip = await parser.parse(
+        active_parser = (
+            parser
+            if parser is not None
+            else get_trip_parser()
+        )
+
+        trip = await active_parser.parse(
             message=request_text,
             reference_date=reference_date,
         )
 
         return {
-            "trip_spec": trip.model_dump(
-                mode="json"
+            "trip_spec": (
+                trip.model_dump(
+                    mode="json"
+                )
             )
         }
 
@@ -106,8 +145,10 @@ def build_negotiator_graph(
         )
 
         return {
-            "result": result.model_dump(
-                mode="json"
+            "result": (
+                result.model_dump(
+                    mode="json"
+                )
             )
         }
 
@@ -153,8 +194,6 @@ def build_negotiator_graph(
     return builder.compile()
 
 
-trip_parser = TripParser()
-
 journey_provider = (
     TutuMCPJourneyProvider()
 )
@@ -165,7 +204,6 @@ constraint_negotiator = (
 
 negotiator_graph = (
     build_negotiator_graph(
-        parser=trip_parser,
         provider=journey_provider,
         solver=constraint_negotiator,
     )

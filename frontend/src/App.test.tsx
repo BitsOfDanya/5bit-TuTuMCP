@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { axe } from "vitest-axe";
@@ -53,6 +53,47 @@ test("opens the sign-in dialog and completes passwordless authentication", async
   await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
   expect(await screen.findByRole("button", { name: /demo/i })).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("registers a new account and signs the user in", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.post("/api/v1/auth/register", async ({ request }) => {
+      const body = (await request.json()) as {
+        name: string;
+        email: string;
+        password: string;
+      };
+      expect(body).toEqual({
+        name: "Анна Петрова",
+        email: "anna@example.com",
+        password: "very-safe-password",
+      });
+      return HttpResponse.json(
+        {
+          user: {
+            id: "user-2",
+            login: body.email,
+            display_name: body.name,
+          },
+        },
+        { status: 201 },
+      );
+    }),
+  );
+
+  renderApp();
+  await user.click(await screen.findByRole("button", { name: "Войти" }));
+  await user.click(screen.getByRole("button", { name: "Зарегистрироваться по почте" }));
+  const dialog = within(screen.getByRole("dialog"));
+  await user.type(dialog.getByLabelText("Имя"), "Анна Петрова");
+  await user.type(dialog.getByLabelText("Электронная почта"), "anna@example.com");
+  await user.type(dialog.getByLabelText("Придумайте пароль"), "very-safe-password");
+  await user.type(dialog.getByLabelText("Повторите пароль"), "very-safe-password");
+  await user.click(dialog.getByRole("button", { name: "Зарегистрироваться" }));
+
+  expect(await screen.findByRole("button", { name: /анна петрова/i })).toBeInTheDocument();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 

@@ -1,54 +1,96 @@
+from __future__ import annotations
+
 from datetime import date
 
-from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from fastapi import (
+    APIRouter,
+    HTTPException,
+)
+from pydantic import (
+    BaseModel,
+    Field,
+)
 
-from app.graph.builder import negotiator_graph
-from app.models.relaxation import NegotiationResult
-from app.models.trip import TripSpec
+from app.ai.parser import (
+    get_trip_parser,
+)
+from app.api.mapper import (
+    to_public_result,
+)
+from app.api.schemas import (
+    PublicNegotiationResult,
+)
+from app.graph.builder import (
+    negotiator_graph,
+)
+from app.models.relaxation import (
+    NegotiationResult,
+)
+from app.models.trip import (
+    TripSpec,
+)
 
 
 router = APIRouter(
     prefix="/api/v1/negotiator",
-    tags=["constraint-negotiator"],
+    tags=["negotiator"],
 )
 
 
-class TextNegotiationRequest(BaseModel):
-    message: str = Field(
+class FromSpecRequest(BaseModel):
+    trip: TripSpec
+
+
+class FromTextRequest(BaseModel):
+    text: str = Field(
         min_length=3,
-        max_length=3000,
+        max_length=4000,
     )
 
     reference_date: date | None = None
 
 
-class SpecNegotiationRequest(BaseModel):
-    trip: TripSpec
+class ParseTextRequest(BaseModel):
+    text: str = Field(
+        min_length=3,
+        max_length=4000,
+    )
+
+    reference_date: date | None = None
 
 
 @router.post(
-    "/from-text",
-    response_model=NegotiationResult,
+    "/parse",
+    response_model=TripSpec,
 )
-async def negotiate_from_text(
-    payload: TextNegotiationRequest,
-) -> NegotiationResult:
+async def parse_trip_text(
+    request: ParseTextRequest,
+) -> TripSpec:
 
-    state = await negotiator_graph.ainvoke(
-        {
-            "request_text": payload.message,
-            "reference_date": (
-                payload.reference_date.isoformat()
-                if payload.reference_date
-                else date.today().isoformat()
+    try:
+        parser = (
+            get_trip_parser()
+        )
+
+        return await parser.parse(
+            message=request.text,
+            reference_date=(
+                request.reference_date
+                or date.today()
             ),
-        }
-    )
+        )
 
-    return NegotiationResult.model_validate(
-        state["result"]
-    )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(
@@ -56,17 +98,132 @@ async def negotiate_from_text(
     response_model=NegotiationResult,
 )
 async def negotiate_from_spec(
-    payload: SpecNegotiationRequest,
+    request: FromSpecRequest,
 ) -> NegotiationResult:
 
-    state = await negotiator_graph.ainvoke(
-        {
-            "trip_spec": payload.trip.model_dump(
-                mode="json"
-            )
-        }
+    result = await _run_from_spec(
+        request.trip
     )
 
-    return NegotiationResult.model_validate(
-        state["result"]
+    return result
+
+
+@router.post(
+    "/from-text",
+    response_model=NegotiationResult,
+)
+async def negotiate_from_text(
+    request: FromTextRequest,
+) -> NegotiationResult:
+
+    return await _run_from_text(
+        request
+    )
+
+
+# ---------------------------------------------------------
+# PUBLIC / FRONTEND API
+# ---------------------------------------------------------
+
+
+@router.post(
+    "/from-spec/public",
+    response_model=(
+        PublicNegotiationResult
+    ),
+)
+async def negotiate_from_spec_public(
+    request: FromSpecRequest,
+) -> PublicNegotiationResult:
+
+    result = await _run_from_spec(
+        request.trip
+    )
+
+    return to_public_result(
+        result
+    )
+
+
+@router.post(
+    "/from-text/public",
+    response_model=(
+        PublicNegotiationResult
+    ),
+)
+async def negotiate_from_text_public(
+    request: FromTextRequest,
+) -> PublicNegotiationResult:
+
+    result = await _run_from_text(
+        request
+    )
+
+    return to_public_result(
+        result
+    )
+
+
+# ---------------------------------------------------------
+# INTERNAL HELPERS
+# ---------------------------------------------------------
+
+
+async def _run_from_spec(
+    trip: TripSpec,
+) -> NegotiationResult:
+
+    state = (
+        await negotiator_graph.ainvoke(
+            {
+                "trip_spec": (
+                    trip.model_dump(
+                        mode="json"
+                    )
+                )
+            }
+        )
+    )
+
+    return (
+        NegotiationResult
+        .model_validate(
+            state["result"]
+        )
+    )
+
+
+async def _run_from_text(
+    request: FromTextRequest,
+) -> NegotiationResult:
+
+    try:
+        state = (
+            await negotiator_graph.ainvoke(
+                {
+                    "request_text": (
+                        request.text
+                    ),
+                    "reference_date": (
+                        (
+                            request.reference_date
+                            or date.today()
+                        )
+                        .isoformat()
+                    ),
+                }
+            )
+        )
+
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    return (
+        NegotiationResult
+        .model_validate(
+            state["result"]
+        )
     )

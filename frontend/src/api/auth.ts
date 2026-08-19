@@ -47,6 +47,17 @@ export function passwordAuth(email: string, password: string): Promise<AuthSessi
   });
 }
 
+export function registerAccount(
+  name: string,
+  email: string,
+  password: string,
+): Promise<AuthSession> {
+  return apiRequest<AuthSession>("/api/v1/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ name, email, password }),
+  });
+}
+
 export function logout(): Promise<{ message: string }> {
   return apiRequest<{ message: string }>("/api/v1/auth/logout", {
     method: "POST",
