@@ -151,3 +151,12 @@ cd ../ai-service
 ```
 
 После `npm run build` FastAPI автоматически раздаёт `frontend/dist` с корня.
+
+## Production
+
+Production-образы, Caddy, GHCR CI, deploy/rollback и резервное копирование описаны в
+[DEPLOYMENT.md](DEPLOYMENT.md). Основная команда развёртывания:
+
+```bash
+make prod-deploy ENV_FILE=.env.production
+```

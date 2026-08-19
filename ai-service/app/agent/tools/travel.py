@@ -92,6 +92,16 @@ def determine_next_action(trip: ToolTripDetails) -> dict[str, str]:
 
 
 @tool
-def build_search_redirect(trip: ToolTripDetails) -> dict[str, str]:
-    """Build a relative internal search URL for a complete normalized trip."""
-    return {"redirect_url": search_redirect_url(trip.to_domain())}
+def build_search_redirect(trip: ToolTripDetails) -> dict[str, Any]:
+    """Build a relative URL, or report fields still needed without failing the agent run."""
+    domain_trip = trip.to_domain()
+    missing_fields = missing_trip_fields(domain_trip)
+    if missing_fields:
+        return {
+            "status": "incomplete",
+            "missing_fields": missing_fields,
+        }
+    return {
+        "status": "ready",
+        "redirect_url": search_redirect_url(domain_trip),
+    }
