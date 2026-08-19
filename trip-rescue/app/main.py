@@ -8,6 +8,9 @@ from fastapi.middleware.cors import (
     CORSMiddleware,
 )
 
+from app.api.preferences import (
+    router as preferences_router,
+)
 from app.api.routes import (
     router as rescue_router,
 )
@@ -43,10 +46,10 @@ settings = get_settings()
 app = FastAPI(
     title="Trip Rescue",
     description=(
-        "Minimal travel replan service "
+        "Minimal intelligent travel replan service "
         "powered by Tutu MCP."
     ),
-    version="0.1.0",
+    version="0.2.0",
 )
 
 
@@ -76,6 +79,10 @@ app.include_router(
 )
 
 app.include_router(
+    preferences_router
+)
+
+app.include_router(
     system_router
 )
 
@@ -85,7 +92,7 @@ async def health() -> dict:
     return {
         "status": "ok",
         "service": "trip-rescue",
-        "version": "0.1.0",
+        "version": "0.2.0",
     }
 
 
