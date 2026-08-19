@@ -2,7 +2,7 @@ from datetime import date
 
 from app.engine import select_best_trip
 from app.provider import DemoTripOfferProvider
-from app.schemas import RecommendationStatus, TripIntent
+from app.schemas import RecommendationStatus, SimulationScenario, TripIntent
 from app.service import TripTrackingService
 
 
@@ -36,9 +36,13 @@ def test_service_tracks_history_and_changes_recommendation() -> None:
     service = TripTrackingService(DemoTripOfferProvider())
 
     created = service.create(intent())
-    updated = service.refresh(created.id, simulated=True)
+    dropped = service.simulate(created.id, SimulationScenario.DROP)
+    spiked = service.simulate(created.id, SimulationScenario.SPIKE)
 
     assert created.recommendation.status is RecommendationStatus.COLLECTING_DATA
-    assert len(updated.history) == 2
-    assert updated.summary.minimum_price <= updated.summary.current_price
-    assert updated.recommendation.status is RecommendationStatus.BUY_NOW
+    assert len(spiked.history) == 3
+    assert dropped.summary.current_price < created.summary.current_price
+    assert dropped.recommendation.status is RecommendationStatus.BUY_NOW
+    assert spiked.summary.current_price > dropped.summary.current_price
+    assert spiked.summary.difference_from_min > 0
+    assert spiked.recommendation.status is RecommendationStatus.WAIT

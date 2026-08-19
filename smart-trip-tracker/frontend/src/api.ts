@@ -26,8 +26,16 @@ export function createTracking(intent: TripIntent): Promise<TripTracking> {
   });
 }
 
-export function simulateTracking(id: string): Promise<TripTracking> {
-  return request<TripTracking>(`/api/v1/trips/${id}/simulate`, {
+export type SimulationScenario = "drop" | "spike";
+
+export function simulateTracking({
+  id,
+  scenario,
+}: {
+  id: string;
+  scenario: SimulationScenario;
+}): Promise<TripTracking> {
+  return request<TripTracking>(`/api/v1/trips/${id}/simulate?scenario=${scenario}`, {
     method: "POST",
   });
 }

@@ -8,13 +8,17 @@ from app.repository import InMemoryTrackingRepository, TrackingRepository, Track
 from app.schemas import (
     BestTrip,
     PricePoint,
+    SimulationScenario,
     TrackingListResponse,
     TripIntent,
     TripSnapshot,
     TripTrackingResponse,
 )
 
-SIMULATION_FACTORS = (0.97, 0.93, 1.01, 0.96)
+SIMULATION_FACTORS = {
+    SimulationScenario.DROP: 0.93,
+    SimulationScenario.SPIKE: 1.20,
+}
 
 
 class InactiveTrackingError(RuntimeError):
@@ -52,46 +56,56 @@ class TripTrackingService:
             items=[self._response(state) for state in self.repository.list()]
         )
 
-    def refresh(self, tracking_id: UUID, *, simulated: bool = False) -> TripTrackingResponse:
+    def refresh(self, tracking_id: UUID) -> TripTrackingResponse:
         lock = self._tracking_lock(tracking_id)
         with lock:
             state = self.repository.get(tracking_id)
-            if not state.active:
-                raise InactiveTrackingError("Trip tracking is stopped.")
+            self._ensure_active(state)
             previous_time = state.snapshots[-1].timestamp
-            timestamp = previous_time + timedelta(hours=6) if simulated else datetime.now(UTC)
-            state = self._add_snapshot(state, simulated=simulated, timestamp=timestamp)
+            timestamp = max(datetime.now(UTC), previous_time + timedelta(seconds=1))
+            best_trip = select_best_trip(self.provider.search(state.intent), state.intent)
+            state = self._store_snapshot(
+                state,
+                best_trip=best_trip,
+                simulated=False,
+                timestamp=timestamp,
+            )
             return self._response(state)
 
-    def stop(self, tracking_id: UUID) -> TripTrackingResponse:
-        return self._response(self.repository.stop(tracking_id))
-
-    def _add_snapshot(
+    def simulate(
         self,
-        state: TrackingState,
-        *,
-        simulated: bool,
-        timestamp: datetime,
-    ) -> TrackingState:
-        best_trip = select_best_trip(self.provider.search(state.intent), state.intent)
-        if simulated:
-            factor = SIMULATION_FACTORS[(len(state.snapshots) - 1) % len(SIMULATION_FACTORS)]
-            transport_price = round(best_trip.transport_price * factor)
-            hotel_price = round(best_trip.hotel_price * factor)
-            best_trip = best_trip.model_copy(
+        tracking_id: UUID,
+        scenario: SimulationScenario,
+    ) -> TripTrackingResponse:
+        lock = self._tracking_lock(tracking_id)
+        with lock:
+            state = self.repository.get(tracking_id)
+            self._ensure_active(state)
+            latest = state.snapshots[-1]
+            factor = SIMULATION_FACTORS[scenario]
+            transport_price = round(latest.best_trip.transport_price * factor)
+            hotel_price = round(latest.best_trip.hotel_price * factor)
+            best_trip = latest.best_trip.model_copy(
                 update={
                     "transport_price": transport_price,
                     "hotel_price": hotel_price,
                     "total_price": transport_price + hotel_price,
+                    "transport": latest.best_trip.transport.model_copy(
+                        update={"price": transport_price}
+                    ),
+                    "hotel": latest.best_trip.hotel.model_copy(update={"price_total": hotel_price}),
                 }
             )
+            state = self._store_snapshot(
+                state,
+                best_trip=best_trip,
+                simulated=True,
+                timestamp=latest.timestamp + timedelta(hours=6),
+            )
+            return self._response(state)
 
-        return self._store_snapshot(
-            state,
-            best_trip=best_trip,
-            simulated=simulated,
-            timestamp=timestamp,
-        )
+    def stop(self, tracking_id: UUID) -> TripTrackingResponse:
+        return self._response(self.repository.stop(tracking_id))
 
     def _store_snapshot(
         self,
@@ -137,3 +151,8 @@ class TripTrackingService:
     def _tracking_lock(self, tracking_id: UUID) -> Lock:
         with self._locks_guard:
             return self._refresh_locks.setdefault(tracking_id, Lock())
+
+    @staticmethod
+    def _ensure_active(state: TrackingState) -> None:
+        if not state.active:
+            raise InactiveTrackingError("Trip tracking is stopped.")

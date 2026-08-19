@@ -238,11 +238,6 @@ main {
   background: white;
 }
 
-.simulate-button {
-  border: 0;
-  color: #5d45d5;
-  background: #eeeafd;
-}
 
 .stop-button {
   border: 1px solid #f0cfd4;
@@ -320,6 +315,60 @@ main {
   font-size: 12px;
 }
 
+.scenario-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 12px;
+  padding: 17px 18px;
+  border: 1px dashed #cfc6f2;
+  border-radius: 14px;
+  background: #f8f6ff;
+}
+
+.scenario-panel h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.scenario-panel > div > p:last-child {
+  max-width: 570px;
+  margin: 5px 0 0;
+  color: #716a7e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.scenario-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.scenario-actions button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.scenario-drop {
+  border: 1px solid #bce5d0;
+  color: #176341;
+  background: #e8f8f0;
+}
+
+.scenario-spike {
+  border: 1px solid #f0c7ce;
+  color: #9b3444;
+  background: #fff0f2;
+}
+
 .dashboard-grid {
   align-items: stretch;
   gap: 12px;
@@ -371,6 +420,73 @@ main {
   fill: white;
   stroke: #7255ef;
   stroke-width: 4;
+}
+
+.price-chart text {
+  fill: #7b7486;
+  font-size: 10px;
+}
+
+.price-chart .axis-label {
+  text-anchor: end;
+}
+
+.price-chart .point-value {
+  fill: #4f37c6;
+  font-size: 11px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.price-chart .time-label {
+  fill: #81798d;
+  font-size: 10px;
+}
+
+.price-history {
+  display: grid;
+  gap: 6px;
+  max-height: 190px;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.price-history li {
+  display: grid;
+  grid-template-columns: minmax(145px, 1fr) auto minmax(105px, auto);
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #f8f7fb;
+  font-size: 11px;
+}
+
+.price-history time {
+  color: #777081;
+}
+
+.price-history strong {
+  font-size: 12px;
+}
+
+.price-delta {
+  text-align: right;
+  font-weight: 800;
+}
+
+.price-delta.up {
+  color: #ad3c4d;
+}
+
+.price-delta.down {
+  color: #17704a;
+}
+
+.price-delta.same {
+  color: #7b7486;
 }
 
 .combination-card > div {
@@ -440,6 +556,11 @@ main {
   .dashboard-grid {
     flex-direction: column;
   }
+
+  .scenario-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 620px) {
@@ -483,5 +604,22 @@ main {
   .dashboard-actions button {
     flex: 1;
     justify-content: center;
+  }
+
+  .scenario-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .scenario-actions button {
+    justify-content: center;
+  }
+
+  .price-history li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .price-delta {
+    grid-column: 1 / -1;
   }
 }

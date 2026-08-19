@@ -4,14 +4,17 @@ from pathlib import Path
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+SERVICE_DIR = Path(__file__).resolve().parents[1]
+ROOT_ENV_FILE = SERVICE_DIR.parent / ".env"
+ENV_FILE = SERVICE_DIR / ".env"
 DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[1] / ".data" / "tutumcp.db"
 
 
 class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=ENV_FILE,
+        env_file=(ROOT_ENV_FILE, ENV_FILE),
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
     )
 
@@ -20,10 +23,9 @@ class DatabaseSettings(BaseSettings):
 
 
 class Settings(DatabaseSettings):
-    openai_api_key: SecretStr = SecretStr("")
-    openai_model: str = "gpt-5.6-luna"
-    document_extraction_model: str = "gpt-5.6-luna"
-    agent_system_prompt: str = "You are a helpful assistant. Be concise and accurate."
+    ai_service_url: str = "http://127.0.0.1:8020"
+    ai_service_token: SecretStr = SecretStr("")
+    ai_service_timeout_seconds: float = 90.0
     auth_secret_key: SecretStr = SecretStr("local-development-key-change-me-please")
     auth_cookie_name: str = "tutumcp_session"
     auth_debug: bool = True

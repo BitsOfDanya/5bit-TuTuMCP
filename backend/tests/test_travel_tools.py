@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from app.schemas import AgentNextAction, TravelService, TripDetails
-from app.travel_tools import next_travel_action, search_redirect_url, validate_trip
+from app.travel_rules import next_travel_action, search_redirect_url, validate_trip
 
 
 def test_tools_keep_incomplete_trip_in_collection_flow() -> None:

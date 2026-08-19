@@ -5,16 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "tutumcp-backend"
 version = "0.1.0"
-description = "FastAPI service exposing a LangChain agent backed by OpenAI"
+description = "FastAPI application for users, chat history, and the public TuTuMCP API"
 requires-python = ">=3.12"
 dependencies = [
     "aiosqlite>=0.21,<1.0",
     "alembic>=1.18,<2.0",
     "fastapi[standard]>=0.115,<1.0",
-    "langchain>=1.0,<2.0",
-    "langchain-openai>=1.0,<2.0",
-    "langgraph>=1.2,<2.0",
-    "openai>=3.3,<4.0",
+    "httpx>=0.28,<1.0",
     "PyJWT>=2.10,<3.0",
     "pydantic-settings>=2.10,<3.0",
     "pwdlib[argon2]>=0.2,<1.0",

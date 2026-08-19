@@ -1,11 +1,11 @@
 import logging
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent import get_agent, merge_trip_details
+from app.ai_client import AIServiceClientDep, AIServiceError
 from app.config import get_database_settings
 from app.conversations import (
     ConversationAccessError,
@@ -14,43 +14,36 @@ from app.conversations import (
     get_session_lock_registry,
 )
 from app.database import get_db_session
-from app.document_extraction import (
+from app.document_uploads import (
     DocumentMediaType,
-    PassengerDocumentExtractor,
-    get_document_extractor,
     validate_document_upload,
 )
 from app.schemas import (
     AgentRequest,
     AgentResponse,
-    AgentTurn,
     ChatMessage,
     ConversationHistoryResponse,
     ConversationSummary,
     PassengerDocumentExtractionResponse,
-    TravelPlan,
     TravelService,
     TripDetails,
     UserConversationsResponse,
-    missing_document_fields,
     missing_trip_fields,
 )
-from app.travel_tools import next_travel_action, search_redirect_url
+from app.travel_rules import next_travel_action, search_redirect_url
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
-AgentDep = Annotated[Any, Depends(get_agent)]
 DatabaseSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
 SessionLocksDep = Annotated[SessionLockRegistry, Depends(get_session_lock_registry)]
-DocumentExtractorDep = Annotated[PassengerDocumentExtractor, Depends(get_document_extractor)]
 DocumentUpload = Annotated[UploadFile, File(description="One PNG, JPEG, or PDF document.")]
 
 
 @router.post("/chat")
 async def chat_with_agent(
     request: AgentRequest,
-    agent: AgentDep,
+    ai_client: AIServiceClientDep,
     database_session: DatabaseSessionDep,
     session_locks: SessionLocksDep,
 ) -> AgentResponse:
@@ -77,43 +70,37 @@ async def chat_with_agent(
         ]
 
         try:
-            result = await agent.ainvoke(
-                {"messages": messages, "current_trip": current_trip}
+            result = await ai_client.chat(
+                messages=messages,
+                current_trip=current_trip,
             )
-            turn = AgentTurn.model_validate(result["structured_response"])
-            plan = TravelPlan.model_validate(result["plan"])
-        except Exception as exc:
-            logger.exception("Agent invocation failed")
+        except AIServiceError as exc:
+            logger.exception("AI service invocation failed")
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="The agent could not produce a response.",
+                detail=str(exc),
             ) from exc
 
-        trip = merge_trip_details(current_trip, turn.trip)
+        trip = result.trip
         await repository.save_turn(
             conversation,
             trip,
             request.message,
-            turn.assistant_message,
-        )
-
-        missing_fields = missing_trip_fields(trip)
-        next_action = next_travel_action(trip)
-        redirect_url = (
-            search_redirect_url(trip) if next_action.value == "redirect_to_search" else None
+            result.response,
         )
 
         return AgentResponse(
             user_id=request.user_id,
             session_id=session_id,
-            response=turn.assistant_message,
+            response=result.response,
             trip=trip,
-            missing_fields=missing_fields,
-            is_complete=not missing_fields,
-            next_action=next_action,
-            plan=plan,
-            tools_used=list(dict.fromkeys(result.get("tools_used", []))),
-            redirect_url=redirect_url,
+            missing_fields=result.missing_fields,
+            is_complete=result.is_complete,
+            next_action=result.next_action,
+            plan=result.plan,
+            tools_used=result.tools_used,
+            tool_statuses=result.tool_statuses,
+            redirect_url=result.redirect_url,
         )
 
 
@@ -147,9 +134,7 @@ async def get_conversation_history(
     ]
     missing_fields = missing_trip_fields(trip)
     next_action = next_travel_action(trip)
-    redirect_url = (
-        search_redirect_url(trip) if next_action.value == "redirect_to_search" else None
-    )
+    redirect_url = search_redirect_url(trip) if next_action.value == "redirect_to_search" else None
 
     return ConversationHistoryResponse(
         user_id=user_id,
@@ -191,7 +176,7 @@ async def extract_passenger_document(
     user_id: UUID,
     session_id: UUID,
     document: DocumentUpload,
-    extractor: DocumentExtractorDep,
+    ai_client: AIServiceClientDep,
     database_session: DatabaseSessionDep,
     session_locks: SessionLocksDep,
 ) -> PassengerDocumentExtractionResponse:
@@ -243,26 +228,25 @@ async def extract_passenger_document(
         ) from exc
 
     try:
-        extracted = await extractor.extract(
+        extracted = await ai_client.extract_document(
             filename=f"document{_extension_for(media_type)}",
             media_type=media_type,
             content=content,
         )
-    except Exception as exc:
-        logger.exception("Passenger document extraction failed")
+    except AIServiceError as exc:
+        logger.exception("AI document extraction failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The passenger document could not be extracted.",
+            detail=str(exc),
         ) from exc
 
-    missing_fields = missing_document_fields(extracted)
     return PassengerDocumentExtractionResponse(
         user_id=user_id,
         session_id=session_id,
-        media_type=media_type,
-        document=extracted,
-        missing_fields=missing_fields,
-        manual_review_required=bool(missing_fields or extracted.warnings),
+        media_type=extracted.media_type,
+        document=extracted.document,
+        missing_fields=extracted.missing_fields,
+        manual_review_required=extracted.manual_review_required,
     )
 
 

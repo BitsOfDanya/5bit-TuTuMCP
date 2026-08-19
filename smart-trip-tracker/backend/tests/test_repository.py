@@ -3,7 +3,7 @@ from pathlib import Path
 
 from app.provider import DemoTripOfferProvider
 from app.repository import SQLiteTrackingRepository
-from app.schemas import TripIntent
+from app.schemas import SimulationScenario, TripIntent
 from app.service import TripTrackingService
 
 
@@ -25,7 +25,7 @@ def test_sqlite_history_survives_service_restart(tmp_path: Path) -> None:
         SQLiteTrackingRepository(database_path),
     )
     created = first_service.create(intent)
-    refreshed = first_service.refresh(created.id, simulated=True)
+    refreshed = first_service.simulate(created.id, SimulationScenario.DROP)
 
     restarted_service = TripTrackingService(
         DemoTripOfferProvider(),

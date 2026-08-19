@@ -73,6 +73,11 @@ class RecommendationStatus(StrEnum):
     GOOD_VALUE = "GOOD_VALUE"
 
 
+class SimulationScenario(StrEnum):
+    DROP = "drop"
+    SPIKE = "spike"
+
+
 class PricePoint(BaseModel):
     timestamp: datetime
     total_price: int

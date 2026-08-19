@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { getSession, logout } from "./api/auth";
 import { AuthModal } from "./components/AuthModal";
+import { ChatWidget } from "./components/ChatWidget";
 import { HomePage } from "./components/HomePage";
 import type { AuthSession, User } from "./types";
 
@@ -66,6 +67,7 @@ export function App() {
         onAuthenticated={handleAuthenticated}
         onStub={notify}
       />
+      <ChatWidget key={user?.id ?? "guest"} user={user} />
       {toast ? (
         <div className="toast" role="status">
           <span>{toast}</span>

@@ -79,9 +79,44 @@ const tracking: TripTracking = {
   ],
 };
 
+const spikedTracking: TripTracking = {
+  ...tracking,
+  last_checked_at: "2026-08-19T16:00:00Z",
+  summary: {
+    current_price: 41760,
+    minimum_price: 34800,
+    average_price: 38280,
+    difference_from_min: 6960,
+  },
+  recommendation: {
+    status: "WAIT",
+    message: "Цена заметно выше недавнего минимума — можно подождать.",
+  },
+  current_trip: {
+    ...tracking.current_trip,
+    total_price: 41760,
+    transport_price: 25680,
+    hotel_price: 16080,
+  },
+  history: [
+    ...tracking.history,
+    {
+      timestamp: "2026-08-19T16:00:00Z",
+      total_price: 41760,
+      trip_score: 91,
+    },
+  ],
+};
+
 test("creates tracking and shows the complete-trip dashboard", async () => {
   server.use(
     http.post("/api/v1/trips", () => HttpResponse.json(tracking, { status: 201 })),
+    http.post("/api/v1/trips/:id/simulate", ({ request }) => {
+      const scenario = new URL(request.url).searchParams.get("scenario");
+      return HttpResponse.json(
+        scenario === "spike" ? spikedTracking : tracking,
+      );
+    }),
     http.delete("/api/v1/trips/:id", () =>
       HttpResponse.json({ ...tracking, active: false }),
     ),
@@ -95,9 +130,34 @@ test("creates tracking and shows the complete-trip dashboard", async () => {
   expect(screen.getByText("Комфорт у набережной")).toBeInTheDocument();
   expect(screen.getByRole("img", { name: /график изменения/i })).toBeInTheDocument();
   expect(screen.getByText("Собираем историю")).toBeInTheDocument();
+  expect(screen.getByRole("list", { name: "История изменения цены" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Цена выросла на 20%" }));
+
+  expect(await screen.findByText("Лучше подождать")).toBeInTheDocument();
+  expect(screen.getByText(/\+6\s*960/)).toBeInTheDocument();
+
 
   await user.click(screen.getByRole("button", { name: "Остановить" }));
 
   expect(await screen.findByText("Отслеживание остановлено")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Обновить" })).toBeDisabled();
+});
+
+
+test("shows a visible error when Tutu MCP is unavailable", async () => {
+  server.use(
+    http.post("/api/v1/trips", () =>
+      HttpResponse.json(
+        { detail: "Tutu MCP is unavailable." },
+        { status: 502 },
+      ),
+    ),
+  );
+  const user = userEvent.setup();
+  renderApp();
+
+  await user.click(await screen.findByRole("button", { name: "Следить за поездкой" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Tutu MCP is unavailable.");
 });
