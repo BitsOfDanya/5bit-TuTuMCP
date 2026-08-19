@@ -17,8 +17,8 @@ class TripIntent(BaseModel):
 
     @model_validator(mode="after")
     def validate_dates_and_route(self) -> "TripIntent":
-        if self.return_date <= self.departure_date:
-            raise ValueError("Return date must be after departure date.")
+        if self.return_date < self.departure_date:
+            raise ValueError("Return date cannot be before departure date.")
         if self.origin.strip().casefold() == self.destination.strip().casefold():
             raise ValueError("Origin and destination must be different.")
         self.origin = self.origin.strip()
@@ -63,7 +63,7 @@ class BestTrip(BaseModel):
     transfers: int
     hotel_rating: float
     transport: TransportOffer
-    hotel: HotelOffer
+    hotel: HotelOffer | None = None
 
 
 class RecommendationStatus(StrEnum):

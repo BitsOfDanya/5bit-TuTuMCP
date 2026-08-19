@@ -1,0 +1,42 @@
+services:
+  trip-rescue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: trip-rescue:latest
+
+    container_name: trip-rescue
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      PORT: "8020"
+      PREFERENCE_STORE_PATH: "/data/preferences.json"
+
+    ports:
+      - "8020:8020"
+
+    volumes:
+      - trip-rescue-data:/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8020/health', timeout=3)"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+
+volumes:
+  trip-rescue-data:
+    name: trip-rescue-data

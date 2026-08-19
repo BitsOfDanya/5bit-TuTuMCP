@@ -19,9 +19,11 @@ from app.api.mapper import (
     to_public_response,
 )
 from app.api.schemas import (
+    CandidatePersonalization,
     CurrentJourneyInput,
     PublicRescueResponse,
     RawRescueResponse,
+    RescuePersonalizationSummary,
 )
 from app.graph.builder import (
     rescue_graph,
@@ -31,6 +33,12 @@ from app.models.journey import (
 )
 from app.models.trip import (
     TripSpec,
+)
+from app.preferences.scorer import (
+    rerank_rescue_candidates,
+)
+from app.preferences.store import (
+    get_preference_store,
 )
 
 
@@ -78,6 +86,14 @@ class FromTextPublicRequest(BaseModel):
 
     reference_date: date | None = None
 
+    preference_profile_id: (
+        str
+        | None
+    ) = Field(
+        default=None,
+        max_length=128,
+    )
+
 
 class FromSpecRequest(BaseModel):
     current_trip: TripSpec
@@ -92,6 +108,14 @@ class FromSpecPublicRequest(BaseModel):
 
     current_journey: (
         CurrentJourneyInput
+    )
+
+    preference_profile_id: (
+        str
+        | None
+    ) = Field(
+        default=None,
+        max_length=128,
     )
 
 
@@ -170,6 +194,7 @@ async def rescue_from_text(
 async def rescue_from_text_public(
     request: FromTextPublicRequest,
 ) -> PublicRescueResponse:
+
     journey = to_domain_journey(
         request.current_journey
     )
@@ -187,8 +212,11 @@ async def rescue_from_text_public(
         ),
     )
 
-    return to_public_response(
-        result
+    return _to_personalized_public(
+        result=result,
+        profile_id=(
+            request.preference_profile_id
+        ),
     )
 
 
@@ -219,6 +247,7 @@ async def rescue_from_spec(
 async def rescue_from_spec_public(
     request: FromSpecPublicRequest,
 ) -> PublicRescueResponse:
+
     journey = to_domain_journey(
         request.current_journey
     )
@@ -233,9 +262,157 @@ async def rescue_from_spec_public(
         ),
     )
 
-    return to_public_response(
-        result
+    return _to_personalized_public(
+        result=result,
+        profile_id=(
+            request.preference_profile_id
+        ),
     )
+
+
+def _to_personalized_public(
+    *,
+    result: RawRescueResponse,
+    profile_id: str | None,
+) -> PublicRescueResponse:
+
+    if not profile_id:
+        return to_public_response(
+            result
+        )
+
+    clean_profile_id = (
+        profile_id.strip()
+    )
+
+    if not clean_profile_id:
+        return to_public_response(
+            result
+        )
+
+    store = (
+        get_preference_store()
+    )
+
+    profile = store.get(
+        clean_profile_id
+    )
+
+    if profile is None:
+        public = (
+            to_public_response(
+                result
+            )
+        )
+
+        public.personalization = (
+            RescuePersonalizationSummary(
+                profile_id=(
+                    clean_profile_id
+                ),
+                interactions=0,
+                applied=False,
+            )
+        )
+
+        return public
+
+    candidates = (
+        result.execution.candidates
+    )
+
+    if not candidates:
+        public = (
+            to_public_response(
+                result
+            )
+        )
+
+        public.personalization = (
+            RescuePersonalizationSummary(
+                profile_id=(
+                    profile.profile_id
+                ),
+                interactions=(
+                    profile.interactions
+                ),
+                applied=False,
+            )
+        )
+
+        return public
+
+    ranked = (
+        rerank_rescue_candidates(
+            candidates=candidates,
+            profile=profile,
+        )
+    )
+
+    result.execution.candidates = [
+        item.candidate
+        for item
+        in ranked
+    ]
+
+    public = (
+        to_public_response(
+            result
+        )
+    )
+
+    metadata = {
+        item.candidate.id: item
+        for item
+        in ranked
+    }
+
+    for candidate in (
+        public.candidates
+    ):
+        item = metadata.get(
+            candidate.id
+        )
+
+        if item is None:
+            continue
+
+        candidate.personalization = (
+            CandidatePersonalization(
+                preference_score=(
+                    item.preference_score
+                ),
+                personalized_score=(
+                    item.personalized_score
+                ),
+                rank_before=(
+                    item.rank_before
+                ),
+                rank_after=(
+                    item.rank_after
+                ),
+                reasons=list(
+                    item.reasons
+                ),
+            )
+        )
+
+    public.personalization = (
+        RescuePersonalizationSummary(
+            profile_id=(
+                profile.profile_id
+            ),
+            interactions=(
+                profile.interactions
+            ),
+            applied=(
+                profile.interactions
+                > 0
+            ),
+        )
+    )
+
+    return public
 
 
 async def _run_graph(
@@ -246,6 +423,7 @@ async def _run_graph(
     reference_date: date | None = None,
     updated_trip: TripSpec | None = None,
 ) -> RawRescueResponse:
+
     state = {
         "previous_trip": (
             current_trip.model_dump(

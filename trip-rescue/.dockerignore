@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+
+# Secrets
+.env
+.env.*
+
+# Python environment
+.venv
+venv
+env
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Testing
+tests
+.pytest_cache
+.coverage
+htmlcov
+
+# Type / lint
+.mypy_cache
+.ruff_cache
+
+# Runtime data
+data
+
+# IDE
+.idea
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs
+
+# Local artifacts
+build
+dist
+*.egg-info

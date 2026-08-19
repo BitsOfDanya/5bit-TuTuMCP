@@ -194,6 +194,40 @@ class PublicRescueRelaxation(BaseModel):
     score: float
 
 
+class CandidatePersonalization(
+    BaseModel
+):
+    preference_score: float
+
+    personalized_score: float
+
+    rank_before: int = Field(
+        ge=1
+    )
+
+    rank_after: int = Field(
+        ge=1
+    )
+
+    reasons: list[
+        str
+    ] = Field(
+        default_factory=list
+    )
+
+
+class RescuePersonalizationSummary(
+    BaseModel
+):
+    profile_id: str
+
+    interactions: int = Field(
+        ge=0
+    )
+
+    applied: bool
+
+
 class RescueCandidateSummary(BaseModel):
     headline: str
     explanation: str
@@ -239,6 +273,11 @@ class PublicRescueCandidate(BaseModel):
     ] = Field(
         default_factory=list
     )
+
+    personalization: (
+        CandidatePersonalization
+        | None
+    ) = None
 
     journey: PublicJourneyOption
 
@@ -288,6 +327,11 @@ class PublicRescueResponse(BaseModel):
     reasons: list[str] = Field(
         default_factory=list
     )
+
+    personalization: (
+        RescuePersonalizationSummary
+        | None
+    ) = None
 
     candidates: list[
         PublicRescueCandidate

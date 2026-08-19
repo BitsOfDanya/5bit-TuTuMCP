@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { test } from "vitest";
+import { expect, test } from "vitest";
 
 import { App } from "./App";
 import { server } from "./test/server";
@@ -110,7 +110,14 @@ const spikedTracking: TripTracking = {
 
 test("creates tracking and shows the complete-trip dashboard", async () => {
   server.use(
-    http.post("/api/v1/trips", () => HttpResponse.json(tracking, { status: 201 })),
+    http.post("/api/v1/trips", async ({ request }) => {
+      const body = (await request.json()) as { status?: string };
+      expect(body.status).toBe("success");
+      return HttpResponse.json(tracking, { status: 201 });
+    }),
+    http.post("/api/v1/trips/:id/observations", () =>
+      HttpResponse.json(spikedTracking),
+    ),
     http.post("/api/v1/trips/:id/simulate", ({ request }) => {
       const scenario = new URL(request.url).searchParams.get("scenario");
       return HttpResponse.json(
@@ -124,7 +131,7 @@ test("creates tracking and shows the complete-trip dashboard", async () => {
   const user = userEvent.setup();
   renderApp();
 
-  await user.click(await screen.findByRole("button", { name: "Следить за поездкой" }));
+  await user.click(await screen.findByRole("button", { name: "Начать новое отслеживание" }));
 
   expect(await screen.findByRole("heading", { name: "Москва → Казань" })).toBeInTheDocument();
   expect(screen.getByText("Комфорт у набережной")).toBeInTheDocument();
@@ -132,7 +139,7 @@ test("creates tracking and shows the complete-trip dashboard", async () => {
   expect(screen.getByText("Собираем историю")).toBeInTheDocument();
   expect(screen.getByRole("list", { name: "История изменения цены" })).toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Цена выросла на 20%" }));
+  await user.click(screen.getByRole("button", { name: "Добавить как новую точку" }));
 
   expect(await screen.findByText("Лучше подождать")).toBeInTheDocument();
   expect(screen.getByText(/\+6\s*960/)).toBeInTheDocument();
@@ -141,7 +148,9 @@ test("creates tracking and shows the complete-trip dashboard", async () => {
   await user.click(screen.getByRole("button", { name: "Остановить" }));
 
   expect(await screen.findByText("Отслеживание остановлено")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Обновить" })).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: "Добавить как новую точку" }),
+  ).not.toBeInTheDocument();
 });
 
 
@@ -157,7 +166,7 @@ test("shows a visible error when Tutu MCP is unavailable", async () => {
   const user = userEvent.setup();
   renderApp();
 
-  await user.click(await screen.findByRole("button", { name: "Следить за поездкой" }));
+  await user.click(await screen.findByRole("button", { name: "Начать новое отслеживание" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Tutu MCP is unavailable.");
 });

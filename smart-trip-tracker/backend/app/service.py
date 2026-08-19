@@ -3,6 +3,7 @@ from threading import Lock
 from uuid import UUID, uuid4
 
 from app.engine import recommend, select_best_trip, summarize_prices
+from app.negotiator import NegotiationResultInput, adapt_negotiation_result
 from app.provider import TripOfferProvider
 from app.repository import InMemoryTrackingRepository, TrackingRepository, TrackingState
 from app.schemas import (
@@ -23,6 +24,10 @@ SIMULATION_FACTORS = {
 
 class InactiveTrackingError(RuntimeError):
     pass
+
+class TrackingRouteMismatchError(ValueError):
+    pass
+
 
 
 class TripTrackingService:
@@ -47,6 +52,50 @@ class TripTrackingService:
             timestamp=now,
         )
         return self._response(state)
+
+    def create_from_negotiation(
+        self,
+        result: NegotiationResultInput,
+    ) -> TripTrackingResponse:
+        now = datetime.now(UTC)
+        intent, best_trip = adapt_negotiation_result(result)
+        state = self.repository.create(intent, now)
+        state = self._store_snapshot(
+            state,
+            best_trip=best_trip,
+            simulated=False,
+            timestamp=now,
+        )
+        return self._response(state)
+
+    def record_negotiation(
+        self,
+        tracking_id: UUID,
+        result: NegotiationResultInput,
+    ) -> TripTrackingResponse:
+        lock = self._tracking_lock(tracking_id)
+        with lock:
+            state = self.repository.get(tracking_id)
+            self._ensure_active(state)
+            intent, best_trip = adapt_negotiation_result(result)
+            if (
+                intent.origin.casefold() != state.intent.origin.casefold()
+                or intent.destination.casefold() != state.intent.destination.casefold()
+                or intent.departure_date != state.intent.departure_date
+                or intent.return_date != state.intent.return_date
+            ):
+                raise TrackingRouteMismatchError(
+                    "Negotiation result belongs to a different trip."
+                )
+            previous_time = state.snapshots[-1].timestamp
+            timestamp = max(datetime.now(UTC), previous_time + timedelta(seconds=1))
+            state = self._store_snapshot(
+                state,
+                best_trip=best_trip,
+                simulated=False,
+                timestamp=timestamp,
+            )
+            return self._response(state)
 
     def get(self, tracking_id: UUID) -> TripTrackingResponse:
         return self._response(self.repository.get(tracking_id))
@@ -93,7 +142,13 @@ class TripTrackingService:
                     "transport": latest.best_trip.transport.model_copy(
                         update={"price": transport_price}
                     ),
-                    "hotel": latest.best_trip.hotel.model_copy(update={"price_total": hotel_price}),
+                    "hotel": (
+                        latest.best_trip.hotel.model_copy(
+                            update={"price_total": hotel_price}
+                        )
+                        if latest.best_trip.hotel is not None
+                        else None
+                    ),
                 }
             )
             state = self._store_snapshot(

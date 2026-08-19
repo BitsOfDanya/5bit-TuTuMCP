@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownRight, ArrowUpRight, Hotel, Plane, RefreshCw, TrendingDown, XCircle } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Hotel, Route, TrendingDown, XCircle } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 import {
   createTracking,
   listTrackings,
-  refreshTracking,
+  recordNegotiation,
   simulateTracking,
   stopTracking,
 } from "./api";
-import type { TrackingList, TripIntent, TripTracking } from "./types";
+import type { NegotiationResult, TrackingList, TripTracking } from "./types";
 
 const statusLabels = {
   COLLECTING_DATA: "Собираем историю",
@@ -25,7 +25,7 @@ export function App() {
     queryFn: listTrackings,
   });
   const tracking = trackingsQuery.data?.items[0] ?? null;
-  const [form, setForm] = useState<TripIntent>(() => initialIntent());
+  const [resultJson, setResultJson] = useState(initialNegotiationJson);
 
   function saveTracking(updated: TripTracking) {
     queryClient.setQueryData<TrackingList>(["trackings"], (current) => ({
@@ -37,15 +37,16 @@ export function App() {
   }
 
   const createMutation = useMutation({
-    mutationFn: createTracking,
+    mutationFn: (raw: string) => createTracking(parseNegotiationResult(raw)),
+    onSuccess: saveTracking,
+  });
+  const observationMutation = useMutation({
+    mutationFn: ({ id, raw }: { id: string; raw: string }) =>
+      recordNegotiation({ id, result: parseNegotiationResult(raw) }),
     onSuccess: saveTracking,
   });
   const simulateMutation = useMutation({
     mutationFn: simulateTracking,
-    onSuccess: saveTracking,
-  });
-  const refreshMutation = useMutation({
-    mutationFn: refreshTracking,
     onSuccess: saveTracking,
   });
   const stopMutation = useMutation({
@@ -57,12 +58,12 @@ export function App() {
     trackingsQuery.error;
   const actionError =
     simulateMutation.error ??
-    refreshMutation.error ??
+    observationMutation.error ??
     stopMutation.error;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    createMutation.mutate(form);
+    createMutation.mutate(resultJson);
   }
 
   return (
@@ -72,7 +73,7 @@ export function App() {
           <span>trip</span>
           <strong>pulse</strong>
         </a>
-        <span className="mode-badge">Tutu MCP · реальный поиск</span>
+        <span className="mode-badge">Constraint Negotiator → Price Tracker</span>
       </header>
 
       <main>
@@ -80,100 +81,50 @@ export function App() {
           <p className="eyebrow">BEST TIME TO BOOK</p>
           <h1>Когда выгоднее купить всю поездку?</h1>
           <p>
-            Следим за общей стоимостью перелёта туда-обратно и отеля,
-            сравнивая не только цену, но и качество комбинации.
+            Принимаем готовую комбинацию от Constraint Negotiator и следим,
+            как меняется её общая стоимость.
           </p>
         </section>
 
-        <section className="search-card" aria-labelledby="intent-title">
+        <section className="search-card" aria-labelledby="result-title">
           <div>
             <p className="step-label">Шаг 1</p>
-            <h2 id="intent-title">Опишите поездку</h2>
+            <h2 id="result-title">Передайте результат Constraint Negotiator</h2>
+            <p className="input-hint">
+              Вставьте JSON из <code>/api/v1/negotiator/from-text/public</code> или
+              <code> /from-spec/public</code>.
+            </p>
           </div>
           <form onSubmit={handleSubmit}>
-            <label>
-              Откуда
-              <input
-                required
-                value={form.origin}
-                onChange={(event) => setForm({ ...form, origin: event.target.value })}
-              />
-            </label>
-            <label>
-              Куда
-              <input
-                required
-                value={form.destination}
-                onChange={(event) =>
-                  setForm({ ...form, destination: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Туда
-              <input
-                required
-                type="date"
-                value={form.departure_date}
-                onChange={(event) =>
-                  setForm({ ...form, departure_date: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Обратно
-              <input
-                required
-                type="date"
-                value={form.return_date}
-                onChange={(event) =>
-                  setForm({ ...form, return_date: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Бюджет, ₽
-              <input
-                min={1}
-                type="number"
-                value={form.budget ?? ""}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    budget: event.target.value ? Number(event.target.value) : null,
-                  })
-                }
-              />
-            </label>
-            <label>
-              Рейтинг отеля от
-              <input
-                max={10}
-                min={0}
-                step={0.1}
-                type="number"
-                value={form.hotel_rating_min}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    hotel_rating_min: Number(event.target.value),
-                  })
-                }
-              />
-            </label>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={form.direct_only}
-                onChange={(event) =>
-                  setForm({ ...form, direct_only: event.target.checked })
-                }
-              />
-              Только прямые рейсы
-            </label>
-            <button disabled={createMutation.isPending} type="submit">
-              {createMutation.isPending ? "Ищем комбинации…" : "Следить за поездкой"}
-            </button>
+            <label htmlFor="negotiation-result">JSON результата</label>
+            <textarea
+              id="negotiation-result"
+              required
+              spellCheck={false}
+              value={resultJson}
+              onChange={(event) => setResultJson(event.target.value)}
+            />
+            <div className="input-actions">
+              <button disabled={createMutation.isPending} type="submit">
+                {createMutation.isPending
+                  ? "Создаём отслеживание…"
+                  : "Начать новое отслеживание"}
+              </button>
+              {tracking?.active ? (
+                <button
+                  className="ghost-button"
+                  disabled={observationMutation.isPending}
+                  type="button"
+                  onClick={() =>
+                    observationMutation.mutate({ id: tracking.id, raw: resultJson })
+                  }
+                >
+                  {observationMutation.isPending
+                    ? "Добавляем точку…"
+                    : "Добавить как новую точку"}
+                </button>
+              ) : null}
+            </div>
           </form>
           {searchError ? (
             <p className="error" role="alert">
@@ -192,15 +143,6 @@ export function App() {
                 </h2>
               </div>
               <div className="dashboard-actions">
-                <button
-                  className="ghost-button"
-                  disabled={!tracking.active || refreshMutation.isPending}
-                  type="button"
-                  onClick={() => refreshMutation.mutate(tracking.id)}
-                >
-                  <RefreshCw size={17} aria-hidden="true" />
-                  Обновить
-                </button>
                 {tracking.active ? (
                   <button
                     className="stop-button"
@@ -284,25 +226,29 @@ export function App() {
               <article className="combination-card">
                 <h3>Текущая комбинация</h3>
                 <div>
-                  <Plane aria-hidden="true" />
+                  <Route aria-hidden="true" />
                   <span>
-                    <small>Перелёт туда-обратно</small>
+                    <small>Транспорт туда-обратно</small>
                     <strong>{tracking.current_trip.transport.carriers.join(", ")}</strong>
                     <b>{money(tracking.current_trip.transport_price)}</b>
                   </span>
                 </div>
-                <div>
-                  <Hotel aria-hidden="true" />
-                  <span>
-                    <small>Отель</small>
-                    <strong>{tracking.current_trip.hotel.name}</strong>
-                    <b>{money(tracking.current_trip.hotel_price)}</b>
-                  </span>
-                </div>
+                {tracking.current_trip.hotel ? (
+                  <div>
+                    <Hotel aria-hidden="true" />
+                    <span>
+                      <small>Отель</small>
+                      <strong>{tracking.current_trip.hotel.name}</strong>
+                      <b>{money(tracking.current_trip.hotel_price)}</b>
+                    </span>
+                  </div>
+                ) : null}
                 <dl>
                   <div><dt>Полезное время</dt><dd>{tracking.current_trip.useful_time_hours} ч</dd></div>
                   <div><dt>Пересадки</dt><dd>{tracking.current_trip.transfers}</dd></div>
-                  <div><dt>Рейтинг отеля</dt><dd>{tracking.current_trip.hotel_rating}</dd></div>
+                  {tracking.current_trip.hotel ? (
+                    <div><dt>Рейтинг отеля</dt><dd>{tracking.current_trip.hotel_rating}</dd></div>
+                  ) : null}
                 </dl>
               </article>
             </div>
@@ -425,21 +371,80 @@ function PriceChart({ tracking }: { tracking: TripTracking }) {
   );
 }
 
-function initialIntent(): TripIntent {
+function initialNegotiationJson(): string {
   const departure = new Date();
   departure.setDate(departure.getDate() + 21);
   const returning = new Date(departure);
   returning.setDate(returning.getDate() + 3);
-  return {
-    origin: "Москва",
-    destination: "Казань",
-    departure_date: isoDate(departure),
-    return_date: isoDate(returning),
-    adults: 1,
-    budget: 45_000,
-    direct_only: true,
-    hotel_rating_min: 8,
-  };
+  const departureDate = isoDate(departure);
+  const returnDate = isoDate(returning);
+  return JSON.stringify(
+    {
+      status: "success",
+      trip_spec: {
+        origin: "Москва",
+        destination: "Казань",
+        outbound_date: departureDate,
+        return_date: returnDate,
+        travelers: 1,
+        budget: 45000,
+        max_transfers: 0,
+      },
+      journeys: [
+        {
+          id: "example-journey",
+          total_price: 34800,
+          transport_price: 21400,
+          hotel_price: 13400,
+          outbound: {
+            mode: "flight",
+            origin: "Москва",
+            destination: "Казань",
+            departure: `${departureDate}T11:00:00+03:00`,
+            arrival: `${departureDate}T12:30:00+03:00`,
+            price: 10700,
+            duration_minutes: 90,
+            transfers: 0,
+            carrier: "Example Air",
+            booking_url: null,
+          },
+          inbound: {
+            mode: "flight",
+            origin: "Казань",
+            destination: "Москва",
+            departure: `${returnDate}T20:00:00+03:00`,
+            arrival: `${returnDate}T21:30:00+03:00`,
+            price: 10700,
+            duration_minutes: 90,
+            transfers: 0,
+            carrier: "Example Air",
+            booking_url: null,
+          },
+          hotel: {
+            name: "Отель в центре",
+            price: 13400,
+            rating: 8.7,
+            booking_url: null,
+          },
+        },
+      ],
+      alternatives: [],
+    },
+    null,
+    2,
+  );
+}
+
+function parseNegotiationResult(raw: string): NegotiationResult {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) {
+      throw new Error();
+    }
+    return parsed as NegotiationResult;
+  } catch {
+    throw new Error("Введите корректный JSON результата Constraint Negotiator.");
+  }
 }
 
 function isoDate(value: Date): string {
