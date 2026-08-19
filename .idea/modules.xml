@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/5bit-TuTuMCP.iml" filepath="$PROJECT_DIR$/.idea/5bit-TuTuMCP.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/tutumcp-backend.iml" filepath="$PROJECT_DIR$/.idea/tutumcp-backend.iml" />
     </modules>
   </component>
 </project>

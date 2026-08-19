@@ -1,0 +1,1 @@
+"""TuTuMCP backend application."""
