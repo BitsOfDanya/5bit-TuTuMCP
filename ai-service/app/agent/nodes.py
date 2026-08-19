@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_core.messages import ToolMessage
 
-from app.agent.prompts import PLANNER_PROMPT
+from app.agent.prompts import INTENT_CLASSIFIER_PROMPT, PLANNER_PROMPT
 from app.agent.search_options import build_search_options
 from app.agent.state import TravelWorkflowState
 from app.agent.tools.travel import (
@@ -13,14 +13,82 @@ from app.agent.tools.travel import (
     merge_trip_details,
     validate_trip_details,
 )
-from app.domain.travel import AgentTurn, TravelPlan, TripDetails
+from app.domain.travel import (
+    AgentNextAction,
+    AgentTurn,
+    DecisionIntent,
+    IntentClassification,
+    PlanAction,
+    PlanStep,
+    TravelPlan,
+    TripDetails,
+)
 
 
 class TravelWorkflowNodes:
-    def __init__(self, planner: Any, executor: Any, search_client: Any | None = None) -> None:
+    def __init__(
+        self,
+        planner: Any,
+        executor: Any,
+        search_client: Any | None = None,
+        classifier: Any | None = None,
+    ) -> None:
         self._planner = planner
         self._executor = executor
         self._search_client = search_client
+        self._classifier = classifier
+
+    async def classify(self, state: TravelWorkflowState) -> dict[str, DecisionIntent]:
+        if self._classifier is None:
+            return {"decision_intent": DecisionIntent.SEARCH}
+        result = await self._classifier.ainvoke(
+            [{"role": "system", "content": INTENT_CLASSIFIER_PROMPT}, *state["messages"]]
+        )
+        classification = IntentClassification.model_validate(result)
+        return {"decision_intent": classification.intent}
+
+    async def prepare_decision(self, state: TravelWorkflowState) -> dict[str, Any]:
+        intent = state.get("decision_intent", DecisionIntent.SEARCH)
+        current_trip = state.get("current_trip", TripDetails())
+        messages = {
+            DecisionIntent.PREFERENCES: (
+                "Открою быструю настройку предпочтений: четыре выбора, после которых "
+                "варианты будут ранжироваться персонально."
+            ),
+            DecisionIntent.GROUP_PREFERENCES: (
+                "Соберём профили участников и найдём групповой компромисс с конфликтами "
+                "и общим рейтингом вариантов."
+            ),
+            DecisionIntent.RESCUE: (
+                "Проверю принятую поездку и постараюсь заменить только сломанную часть, "
+                "сохранив остальные бронирования."
+            ),
+            DecisionIntent.WHAT_IF: (
+                "Запущу отдельную what-if симуляцию. Текущая принятая поездка не изменится."
+            ),
+        }
+        plan = TravelPlan(
+            objective="Открыть подходящий сценарий Decision Intelligence.",
+            steps=[
+                PlanStep(action=PlanAction.EXTRACT_TRIP_DETAILS, reason="Определить контекст."),
+                PlanStep(action=PlanAction.VALIDATE_TRIP_DETAILS, reason="Проверить сценарий."),
+                PlanStep(action=PlanAction.DETERMINE_NEXT_ACTION, reason="Открыть decision flow."),
+            ],
+        )
+        return {
+            "structured_response": AgentTurn(
+                assistant_message=messages[intent],
+                trip=current_trip,
+                decision_intent=intent,
+            ),
+            "plan": plan,
+            "missing_fields": [],
+            "next_action": AgentNextAction.DECISION_SUPPORT.value,
+            "redirect_url": None,
+            "tools_used": [],
+            "tool_statuses": {},
+            "search_options": [],
+        }
 
     async def plan(self, state: TravelWorkflowState) -> dict[str, TravelPlan]:
         current_trip = state.get("current_trip", TripDetails())
@@ -68,6 +136,20 @@ class TravelWorkflowNodes:
     async def finalize(self, state: TravelWorkflowState) -> dict[str, Any]:
         turn = state["structured_response"]
         trip = merge_trip_details(state.get("current_trip", TripDetails()), turn.trip)
+        if turn.decision_intent is not DecisionIntent.SEARCH:
+            return {
+                "structured_response": AgentTurn(
+                    assistant_message=turn.assistant_message,
+                    trip=trip,
+                    decision_intent=turn.decision_intent,
+                ),
+                "missing_fields": [],
+                "next_action": AgentNextAction.DECISION_SUPPORT.value,
+                "redirect_url": None,
+                "tools_used": list(dict.fromkeys(state.get("tools_used", []))),
+                "tool_statuses": state.get("tool_statuses", {}),
+                "search_options": [],
+            }
         tool_input = {"trip": trip.model_dump(mode="json")}
         validation = validate_trip_details.invoke(tool_input)
         next_action = determine_next_action.invoke(tool_input)["next_action"]
@@ -100,6 +182,7 @@ class TravelWorkflowNodes:
             "structured_response": AgentTurn(
                 assistant_message=turn.assistant_message,
                 trip=trip,
+                decision_intent=turn.decision_intent,
             ),
             "missing_fields": validation["missing_fields"],
             "next_action": next_action,

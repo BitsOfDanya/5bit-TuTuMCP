@@ -1,6 +1,10 @@
 from datetime import datetime
+from typing import Any
+
+import pytest
 
 from app.api.mapper import (
+    attach_checkout_links,
     to_public_result,
 )
 from app.models.journey import (
@@ -19,7 +23,15 @@ from app.models.trip import (
 )
 
 
-def test_public_result_hides_internal_mcp_refs() -> None:
+class FakeCheckoutClient:
+    async def call_tool(self, *, name: str, arguments: dict[str, Any]) -> dict[str, str]:
+        assert name == "create_checkout_link"
+        assert arguments
+        return {"kind": "checkout_deeplink", "checkout_url": "https://tutu.test/checkout"}
+
+
+@pytest.mark.asyncio
+async def test_public_result_hides_internal_mcp_refs() -> None:
 
     trip = TripSpec(
         origin="Москва",
@@ -155,3 +167,9 @@ def test_public_result_hides_internal_mcp_refs() -> None:
         .booking_url
         == "https://example.com/out"
     )
+
+    resolved = await attach_checkout_links(public, result, FakeCheckoutClient())
+
+    assert resolved.alternatives[0].journey.outbound.booking_url == "https://tutu.test/checkout"
+    assert resolved.alternatives[0].journey.hotel.booking_url == "https://tutu.test/checkout"
+    assert "checkout_ref" not in str(resolved.model_dump(mode="json"))

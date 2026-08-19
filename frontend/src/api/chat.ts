@@ -4,6 +4,19 @@ export interface AgentChatRequest {
   message: string;
 }
 
+export interface TripDetails {
+  service_type: "train" | "flight" | "bus" | "hotel" | null;
+  origin: string | null;
+  destination: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  preferred_time: string | null;
+  passengers: number | null;
+  budget: number | null;
+  currency: string;
+  is_international: boolean | null;
+}
+
 export interface SearchSegment {
   mode: string;
   origin: string;
@@ -16,6 +29,7 @@ export interface SearchSegment {
   transfers: number;
   carrier: string | null;
   voyage_no: string | null;
+  booking_url: string | null;
 }
 
 export interface SearchHotel {
@@ -29,6 +43,7 @@ export interface SearchHotel {
   check_out: string | null;
   nights: number | null;
   photo_url: string | null;
+  booking_url: string | null;
 }
 
 export interface TrackingPayload {
@@ -85,19 +100,31 @@ export interface SearchOption {
   changes: string[];
   action_url: string | null;
   tracking_payload: TrackingPayload | null;
+  personalized?: boolean;
+  preference_score?: number | null;
+  preference_reasons?: string[];
+  rank_before?: number | null;
+  rank_after?: number | null;
 }
 
 export interface AgentChatResponse {
   user_id: string;
   session_id: string;
   response: string;
-  trip: Record<string, unknown>;
+  trip: TripDetails;
   missing_fields: string[];
   is_complete: boolean;
   next_action:
     | "collect_trip_details"
     | "upload_passenger_documents"
-    | "redirect_to_search";
+    | "redirect_to_search"
+    | "decision_support";
+  decision_intent:
+    | "search"
+    | "preferences"
+    | "group_preferences"
+    | "rescue"
+    | "what_if";
   redirect_url: string | null;
   tools_used: string[];
   tool_statuses: Record<string, string>;

@@ -11,6 +11,7 @@ from app.ai_client import (
     AIDocumentResult,
     get_ai_service_client,
 )
+from app.api import _personalize_search_options
 from app.database import initialize_database
 from app.main import app
 from app.schemas import (
@@ -20,6 +21,7 @@ from app.schemas import (
     PassengerSex,
     PlanAction,
     PlanStep,
+    SearchOption,
     TravelPlan,
     TravelService,
     TripDetails,
@@ -274,3 +276,60 @@ def test_chat_rejects_empty_message(client: TestClient) -> None:
         json={"user_id": str(USER_ID), "message": ""},
     )
     assert response.status_code == 422
+
+
+def test_preference_reranking_reorders_search_cards_and_attaches_reasons() -> None:
+    class FakePreferenceClient:
+        async def rerank_preferences(self, **_: object) -> dict[str, object]:
+            return {
+                "items": [
+                    {
+                        "candidate_id": "second",
+                        "rank_before": 2,
+                        "rank_after": 1,
+                        "preference_score": 0.91,
+                        "reasons": ["Вы предпочитаете более быстрые поездки."],
+                    },
+                    {
+                        "candidate_id": "first",
+                        "rank_before": 1,
+                        "rank_after": 2,
+                        "preference_score": 0.63,
+                        "reasons": [],
+                    },
+                ],
+            }
+
+    def option(option_id: str, price: int) -> SearchOption:
+        return SearchOption.model_validate({
+            "id": option_id,
+            "kind": "journey",
+            "title": option_id,
+            "total_price": price,
+            "outbound": {
+                "mode": "train",
+                "origin": "Москва",
+                "destination": "Казань",
+                "departure": "2026-09-01T10:00:00+03:00",
+                "arrival": "2026-09-01T21:00:00+03:00",
+                "price": price // 2,
+            },
+            "inbound": {
+                "mode": "train",
+                "origin": "Казань",
+                "destination": "Москва",
+                "departure": "2026-09-05T18:00:00+03:00",
+                "arrival": "2026-09-06T05:00:00+03:00",
+                "price": price // 2,
+            },
+        })
+
+    ranked = asyncio.run(_personalize_search_options(
+        [option("first", 18_000), option("second", 20_000)],
+        profile_id="profile-1",
+        trip_rescue=FakePreferenceClient(),
+    ))
+
+    assert [item.id for item in ranked] == ["second", "first"]
+    assert ranked[0].personalized is True
+    assert ranked[0].preference_reasons == ["Вы предпочитаете более быстрые поездки."]

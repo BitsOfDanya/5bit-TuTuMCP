@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai_client import AIServiceClientDep, AIServiceError
+from app.auth_dependencies import OptionalCurrentUserDep
 from app.config import get_database_settings
 from app.conversations import (
     ConversationAccessError,
@@ -25,12 +26,14 @@ from app.schemas import (
     ConversationHistoryResponse,
     ConversationSummary,
     PassengerDocumentExtractionResponse,
+    SearchOption,
     TravelService,
     TripDetails,
     UserConversationsResponse,
     missing_trip_fields,
 )
 from app.travel_rules import next_travel_action, search_redirect_url
+from app.trip_rescue_client import TripRescueClientDep, TripRescueError
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,8 @@ async def chat_with_agent(
     ai_client: AIServiceClientDep,
     database_session: DatabaseSessionDep,
     session_locks: SessionLocksDep,
+    current_user: OptionalCurrentUserDep,
+    trip_rescue: TripRescueClientDep,
 ) -> AgentResponse:
     session_id = request.session_id or uuid4()
     lock = await session_locks.session_lock(session_id)
@@ -82,6 +87,13 @@ async def chat_with_agent(
             ) from exc
 
         trip = result.trip
+        search_options = result.search_options
+        if current_user is not None and current_user.id == str(request.user_id):
+            search_options = await _personalize_search_options(
+                search_options,
+                profile_id=current_user.id,
+                trip_rescue=trip_rescue,
+            )
         await repository.save_turn(
             conversation,
             trip,
@@ -100,9 +112,70 @@ async def chat_with_agent(
             plan=result.plan,
             tools_used=result.tools_used,
             tool_statuses=result.tool_statuses,
-            search_options=result.search_options,
+            search_options=search_options,
             redirect_url=result.redirect_url,
+            decision_intent=result.decision_intent,
         )
+
+
+async def _personalize_search_options(
+    search_options: list[SearchOption],
+    *,
+    profile_id: str,
+    trip_rescue: object,
+) -> list[SearchOption]:
+    eligible = [
+        option
+        for option in search_options
+        if option.outbound is not None and option.inbound is not None
+    ]
+    if len(eligible) < 2:
+        return search_options
+
+    candidates = [
+        {
+            "id": option.id,
+            "total_price": option.total_price,
+            "outbound": option.outbound.model_dump(mode="json"),
+            "inbound": option.inbound.model_dump(mode="json"),
+            "hotel": option.hotel.model_dump(mode="json") if option.hotel else None,
+        }
+        for option in eligible
+    ]
+    try:
+        payload = await trip_rescue.rerank_preferences(
+            profile_id=profile_id,
+            candidates=candidates,
+        )
+    except TripRescueError:
+        logger.warning("Preference reranking failed; returning original search order")
+        return search_options
+
+    ranked_items = payload.get("items", [])
+    if not isinstance(ranked_items, list):
+        return search_options
+    metadata = {
+        item.get("candidate_id"): item
+        for item in ranked_items
+        if isinstance(item, dict) and isinstance(item.get("candidate_id"), str)
+    }
+    decorated: list[SearchOption] = []
+    for option in search_options:
+        item = metadata.get(option.id)
+        if item is None:
+            decorated.append(option)
+            continue
+        decorated.append(option.model_copy(update={
+            "personalized": True,
+            "preference_score": item.get("preference_score"),
+            "preference_reasons": item.get("reasons", []),
+            "rank_before": item.get("rank_before"),
+            "rank_after": item.get("rank_after"),
+        }))
+    return sorted(
+        decorated,
+        key=lambda option: option.rank_after if option.rank_after is not None else 10_000,
+    )
 
 
 @router.get("/users/{user_id}/sessions/{session_id}")

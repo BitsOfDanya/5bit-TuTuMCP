@@ -13,10 +13,11 @@ smoke:
 	./scripts/smoke-local.sh
 
 test:
-	cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q
-	cd ai-service && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q
-	cd constraint-negotiator && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q
-	cd smart-trip-tracker/backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q
+	cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q
+	cd ai-service && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q
+	cd constraint-negotiator && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q
+	cd smart-trip-tracker/backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q
+	cd trip-rescue && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q
 	cd frontend && npm test
 
 prod-config:

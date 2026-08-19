@@ -74,6 +74,7 @@ def test_builds_clickable_card_data_from_mcp_journey() -> None:
     assert options[0].title == "Москва — Казань"
     assert options[0].total_price == 18_900
     assert options[0].action_url.startswith("https://www.tutu.ru/")
+    assert options[0].outbound.booking_url.startswith("https://www.tutu.ru/")
     assert options[0].tracking_payload is not None
     assert options[0].tracking_payload.trip_spec.outbound_date == "2026-09-01"
     assert options[0].tracking_payload.journeys[0].transport_price == 18_900

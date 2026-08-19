@@ -19,6 +19,7 @@ interface HomePageProps {
   onLogin: () => void;
   onLogout: () => void;
   onOpenAssistant: () => void;
+  onOpenPreferences: () => void;
   onStub: (message: string) => void;
 }
 
@@ -114,6 +115,7 @@ export function HomePage({
   onLogin,
   onLogout,
   onOpenAssistant,
+  onOpenPreferences,
   onStub,
 }: HomePageProps) {
   function handleNewsletter(event: FormEvent<HTMLFormElement>) {
@@ -152,9 +154,9 @@ export function HomePage({
             <aside className="traveller-card">
               <span className="traveller-kicker">КАКОЙ ВЫ ПУТЕШЕСТВЕННИК?</span>
               <p>Ответьте на несколько вопросов — подберём идеи для поездки</p>
-              <button type="button" onClick={() => onStub("Тест путешественника пока не готов")}>
-                Получить
-              </button>
+              <div className="traveller-card-actions">
+                <button type="button" onClick={onOpenPreferences}>Получить</button>
+              </div>
             </aside>
           </div>
 

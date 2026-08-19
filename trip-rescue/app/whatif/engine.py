@@ -92,10 +92,9 @@ class WhatIfEngine:
 
         self.provider = provider
 
-        self.parser = (
-            parser
-            or get_trip_update_parser()
-        )
+        # Spec-based simulations do not need an LLM. Resolve the text parser lazily
+        # so What-if remains usable and testable without an OpenAI credential.
+        self.parser = parser
 
         self.search_limit = max(
             1,
@@ -115,8 +114,9 @@ class WhatIfEngine:
         message: str,
         reference_date: date,
     ) -> WhatIfResult:
+        parser = self.parser or get_trip_update_parser()
         hypothetical_trip = (
-            await self.parser.parse(
+            await parser.parse(
                 previous_trip=(
                     current_trip
                 ),

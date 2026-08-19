@@ -1,7 +1,13 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+SERVICE_DIR = Path(__file__).resolve().parents[1]
+ROOT_ENV_FILE = SERVICE_DIR.parent / ".env"
+LEGACY_BACKEND_ENV_FILE = SERVICE_DIR.parent / "backend" / ".env"
+SERVICE_ENV_FILE = SERVICE_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -25,8 +31,9 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(ROOT_ENV_FILE, LEGACY_BACKEND_ENV_FILE, SERVICE_ENV_FILE),
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
     )
 

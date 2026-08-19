@@ -1,7 +1,7 @@
 import re
 from datetime import date, datetime, time
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -145,6 +145,15 @@ class AgentNextAction(StrEnum):
     COLLECT_TRIP_DETAILS = "collect_trip_details"
     UPLOAD_PASSENGER_DOCUMENTS = "upload_passenger_documents"
     REDIRECT_TO_SEARCH = "redirect_to_search"
+    DECISION_SUPPORT = "decision_support"
+
+
+class DecisionIntent(StrEnum):
+    SEARCH = "search"
+    PREFERENCES = "preferences"
+    GROUP_PREFERENCES = "group_preferences"
+    RESCUE = "rescue"
+    WHAT_IF = "what_if"
 
 
 class SearchSegment(BaseModel):
@@ -159,6 +168,7 @@ class SearchSegment(BaseModel):
     transfers: int = Field(default=0, ge=0)
     carrier: str | None = None
     voyage_no: str | None = None
+    booking_url: str | None = None
 
 
 class SearchHotel(BaseModel):
@@ -172,6 +182,7 @@ class SearchHotel(BaseModel):
     check_out: str | None = None
     nights: int | None = Field(default=None, ge=1)
     photo_url: str | None = None
+    booking_url: str | None = None
 
 
 class TrackingTripSpec(BaseModel):
@@ -234,6 +245,11 @@ class SearchOption(BaseModel):
     changes: list[str] = Field(default_factory=list)
     action_url: str | None = None
     tracking_payload: TrackingPayload | None = None
+    personalized: bool = False
+    preference_score: float | None = Field(default=None, ge=0, le=1)
+    preference_reasons: list[str] = Field(default_factory=list)
+    rank_before: int | None = Field(default=None, ge=1)
+    rank_after: int | None = Field(default=None, ge=1)
 
 
 class TrackerIntent(BaseModel):
@@ -331,6 +347,122 @@ class AgentResponse(BaseModel):
     tool_statuses: dict[str, str]
     search_options: list[SearchOption] = Field(default_factory=list)
     redirect_url: str | None = None
+    decision_intent: DecisionIntent = DecisionIntent.SEARCH
+
+
+TransportModeValue = Literal["train", "flight", "bus", "suburban_train"]
+ConstraintFieldValue = Literal[
+    "budget",
+    "outbound_after",
+    "return_before",
+    "transport",
+    "max_transfers",
+]
+
+
+class AcceptedTripSpec(BaseModel):
+    origin: str = Field(min_length=2, max_length=120)
+    destination: str = Field(min_length=2, max_length=120)
+    outbound_date: date
+    return_date: date
+    outbound_after: time | None = None
+    return_before: time | None = None
+    travelers: int = Field(default=1, ge=1, le=9)
+    budget: int | None = Field(default=None, gt=0)
+    excluded_transport: list[TransportModeValue] = Field(default_factory=list)
+    preferred_transport: list[TransportModeValue] = Field(default_factory=list)
+    max_transfers: int | None = Field(default=None, ge=0, le=5)
+    hard_constraints: set[ConstraintFieldValue] = Field(default_factory=set)
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "AcceptedTripSpec":
+        if self.return_date < self.outbound_date:
+            raise ValueError("return_date cannot be earlier than outbound_date")
+        return self
+
+
+class AcceptedJourney(BaseModel):
+    id: str = Field(min_length=1, max_length=500)
+    total_price: int = Field(ge=0)
+    outbound: SearchSegment
+    inbound: SearchSegment
+    hotel: SearchHotel | None = None
+
+
+class AcceptItineraryRequest(BaseModel):
+    trip: AcceptedTripSpec
+    journey: AcceptedJourney
+
+
+class AcceptedItineraryResponse(AcceptItineraryRequest):
+    updated_at: datetime
+
+
+class DecisionTextRequest(BaseModel):
+    message: str = Field(min_length=3, max_length=4_000)
+
+
+class DecisionServiceResponse(BaseModel):
+    kind: Literal["rescue", "what_if"]
+    result: dict[str, Any]
+
+
+class ColdStartOption(BaseModel):
+    id: str
+    title: str
+    subtitle: str
+    total_price: int = Field(ge=0)
+    duration_minutes: int = Field(ge=0)
+    transfers: int = Field(ge=0)
+    transport: str
+    hotel_rating: float | None = None
+
+
+class ColdStartQuestion(BaseModel):
+    id: str
+    prompt: str
+    left: ColdStartOption
+    right: ColdStartOption
+    targets: list[str] = Field(default_factory=list)
+
+
+class ColdStartQuestionsResponse(BaseModel):
+    total: int = Field(ge=0)
+    minimum_choices: int = Field(default=4, ge=1)
+    questions: list[ColdStartQuestion]
+
+
+class ColdStartChoice(BaseModel):
+    question_id: str = Field(min_length=1)
+    selected_option_id: str = Field(min_length=1)
+
+
+class ColdStartCompleteRequest(BaseModel):
+    choices: list[ColdStartChoice] = Field(min_length=4, max_length=6)
+    replace: bool = False
+
+
+class PreferenceProfileEnvelope(BaseModel):
+    profile: dict[str, Any] | None
+
+
+class ColdStartCompletionResponse(BaseModel):
+    profile: dict[str, Any]
+    cold_start: dict[str, Any]
+    learned_signals: list[str] = Field(default_factory=list)
+
+
+class GroupPreferenceRequest(BaseModel):
+    group_id: str = Field(min_length=1, max_length=128)
+    participant_profile_ids: list[str] = Field(min_length=1, max_length=19)
+
+
+class GroupRerankFacadeRequest(GroupPreferenceRequest):
+    candidates: list[AcceptedJourney] = Field(min_length=1, max_length=100)
+
+
+class GroupPreferenceResponse(BaseModel):
+    result: dict[str, Any]
 
 
 class ChatMessage(BaseModel):

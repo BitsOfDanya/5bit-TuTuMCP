@@ -15,6 +15,7 @@ from app.ai.parser import (
     get_trip_parser,
 )
 from app.api.mapper import (
+    attach_checkout_links,
     to_public_result,
 )
 from app.api.schemas import (
@@ -145,9 +146,8 @@ async def negotiate_from_spec_public(
         request.trip
     )
 
-    return to_public_result(
-        result
-    )
+    public = to_public_result(result)
+    return await attach_checkout_links(public, result)
 
 
 @router.post(
@@ -160,13 +160,9 @@ async def negotiate_from_text_public(
     request: FromTextRequest,
 ) -> PublicNegotiationResult:
 
-    result = await _run_from_text(
-        request
-    )
-
-    return to_public_result(
-        result
-    )
+    result = await _run_from_text(request)
+    public = to_public_result(result)
+    return await attach_checkout_links(public, result)
 
 
 @router.post(

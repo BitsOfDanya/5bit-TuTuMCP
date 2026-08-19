@@ -54,6 +54,25 @@ class MessageRecord(Base):
     )
 
 
+class AcceptedItineraryRecord(Base):
+    __tablename__ = "accepted_itineraries"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trip_spec: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    journey: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
 class User(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     login: str = Field(index=True, unique=True, max_length=254)

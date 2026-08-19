@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.document_uploads import DocumentMediaType
 from app.schemas import (
     AgentNextAction,
+    DecisionIntent,
     PassengerDocumentData,
     SearchOption,
     TravelPlan,
@@ -27,6 +28,7 @@ class AIChatResult(BaseModel):
     tool_statuses: dict[str, str]
     search_options: list[SearchOption] = Field(default_factory=list)
     redirect_url: str | None = None
+    decision_intent: DecisionIntent = DecisionIntent.SEARCH
 
 
 class AIDocumentResult(BaseModel):

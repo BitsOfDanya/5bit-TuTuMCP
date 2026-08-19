@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Clock3, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { PointerEvent as ReactPointerEvent, useRef, useState } from "react";
 
 import {
   completeColdStart,
@@ -10,6 +10,7 @@ import {
 import type { ColdStartChoice, ColdStartOption } from "../api/preferences";
 
 interface PreferenceOnboardingProps {
+  embedded?: boolean;
   isAuthenticated: boolean;
   onClose: () => void;
   onCompleted: (message: string) => void;
@@ -19,6 +20,7 @@ interface PreferenceOnboardingProps {
 type Stage = "intro" | "questions" | "complete";
 
 export function PreferenceOnboarding({
+  embedded = false,
   isAuthenticated,
   onClose,
   onCompleted,
@@ -85,11 +87,14 @@ export function PreferenceOnboarding({
   }
 
   return (
-    <div className="modal-backdrop preference-backdrop" role="presentation">
+    <div
+      className={embedded ? "preference-embedded-host" : "modal-backdrop preference-backdrop"}
+      role={embedded ? undefined : "presentation"}
+    >
       <section
-        className="preference-modal"
-        role="dialog"
-        aria-modal="true"
+        className={`preference-modal${embedded ? " preference-modal-embedded" : ""}`}
+        role={embedded ? "region" : "dialog"}
+        aria-modal={embedded ? undefined : true}
         aria-labelledby="preference-title"
       >
         <header className="preference-modal-header">
@@ -101,7 +106,7 @@ export function PreferenceOnboarding({
             <span />
           )}
           <button type="button" aria-label="Закрыть настройку" onClick={onClose}>
-            <X size={20} aria-hidden="true" />
+            {embedded ? <span>Вернуться в чат</span> : <X size={20} aria-hidden="true" />}
           </button>
         </header>
 
@@ -157,9 +162,9 @@ export function PreferenceOnboarding({
                 <p className="preference-step">Выбор {questionIndex + 1} из {questions.length}</p>
                 <h2 id="preference-title">{currentQuestion.prompt}</h2>
                 <div className="preference-options">
-                  <OptionCard option={currentQuestion.left} onSelect={selectOption} />
+                  <OptionCard option={currentQuestion.left} direction="left" onSelect={selectOption} />
                   <span className="preference-or">или</span>
-                  <OptionCard option={currentQuestion.right} onSelect={selectOption} />
+                  <OptionCard option={currentQuestion.right} direction="right" onSelect={selectOption} />
                 </div>
               </>
             ) : null}
@@ -189,18 +194,68 @@ export function PreferenceOnboarding({
 
 function OptionCard({
   option,
+  direction,
   onSelect,
 }: {
   option: ColdStartOption;
+  direction: "left" | "right";
   onSelect: (id: string) => void;
 }) {
+  const dragStart = useRef<number | null>(null);
+  const ignoreClick = useRef(false);
+  const [dragX, setDragX] = useState(0);
+
+  function beginDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    dragStart.current = event.clientX;
+    ignoreClick.current = false;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function moveDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (dragStart.current === null) {
+      return;
+    }
+    setDragX(event.clientX - dragStart.current);
+  }
+
+  function finishDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    const distance = dragStart.current === null ? 0 : event.clientX - dragStart.current;
+    dragStart.current = null;
+    setDragX(0);
+    const selected = direction === "left" ? distance < -64 : distance > 64;
+    if (selected) {
+      ignoreClick.current = true;
+      onSelect(option.id);
+    }
+  }
+
   return (
     <button
-      className="preference-option"
+      className={`preference-option${dragX ? " preference-option-dragging" : ""}`}
       type="button"
-      onClick={() => onSelect(option.id)}
+      onClick={() => {
+        if (ignoreClick.current) {
+          ignoreClick.current = false;
+          return;
+        }
+        onSelect(option.id);
+      }}
+      onPointerDown={beginDrag}
+      onPointerMove={moveDrag}
+      onPointerUp={finishDrag}
+      onPointerCancel={() => {
+        dragStart.current = null;
+        setDragX(0);
+      }}
+      style={{
+        transform: `translateX(${dragX}px) rotate(${dragX / 24}deg)`,
+        touchAction: "pan-y",
+      }}
       aria-label={`${option.title}: ${option.subtitle}, ${formatPrice(option.total_price)}`}
     >
+      <span className="preference-swipe-hint" aria-hidden="true">
+        {direction === "left" ? "← свайп" : "свайп →"}
+      </span>
       <strong>{option.title}</strong>
       <span>{option.subtitle}</span>
       <small>{transportLabel(option.transport)} · {formatDuration(option.duration_minutes)}</small>

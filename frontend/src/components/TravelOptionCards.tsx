@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   BusFront,
+  CheckCircle2,
   Clock3,
   ExternalLink,
   Hotel,
@@ -15,9 +16,17 @@ import type { SearchOption, SearchSegment } from "../api/chat";
 
 interface TravelOptionCardsProps {
   options: SearchOption[];
+  acceptedOptionId?: string | null;
+  acceptingOptionId?: string | null;
+  onAccept?: (option: SearchOption) => void;
 }
 
-export function TravelOptionCards({ options }: TravelOptionCardsProps) {
+export function TravelOptionCards({
+  options,
+  acceptedOptionId = null,
+  acceptingOptionId = null,
+  onAccept,
+}: TravelOptionCardsProps) {
   if (!options.length) {
     return null;
   }
@@ -25,16 +34,34 @@ export function TravelOptionCards({ options }: TravelOptionCardsProps) {
   return (
     <div className="travel-options" aria-label="Найденные варианты">
       {options.map((option) => (
-        <TravelOptionCard key={`${option.kind}-${option.id}`} option={option} />
+        <TravelOptionCard
+          key={`${option.kind}-${option.id}`}
+          option={option}
+          isAccepted={acceptedOptionId === option.id}
+          isAccepting={acceptingOptionId === option.id}
+          onAccept={onAccept}
+        />
       ))}
     </div>
   );
 }
 
-function TravelOptionCard({ option }: { option: SearchOption }) {
+function TravelOptionCard({
+  option,
+  isAccepted,
+  isAccepting,
+  onAccept,
+}: {
+  option: SearchOption;
+  isAccepted: boolean;
+  isAccepting: boolean;
+  onAccept?: (option: SearchOption) => void;
+}) {
   const href = safeActionUrl(option.action_url);
-  const content = (
-    <>
+  const canAccept = Boolean(option.outbound && option.inbound && onAccept);
+  return (
+    <article className={`travel-option-card${isAccepted ? " travel-option-card-accepted" : ""}`}>
+      <>
       <div className="travel-option-heading">
         <span className={`travel-option-kind travel-option-kind-${option.kind}`}>
           {option.kind === "relaxation" ? (
@@ -47,6 +74,12 @@ function TravelOptionCard({ option }: { option: SearchOption }) {
         </span>
         <strong>{formatMoney(option.total_price, option.currency)}</strong>
       </div>
+
+      {option.personalized && option.rank_after === 1 ? (
+        <span className="travel-option-personalized">
+          <Sparkles size={12} aria-hidden="true" /> Лучше подходит вам
+        </span>
+      ) : null}
 
       <h3>{option.title}</h3>
       {option.explanation ? <p className="travel-option-explanation">{option.explanation}</p> : null}
@@ -74,30 +107,42 @@ function TravelOptionCard({ option }: { option: SearchOption }) {
         </div>
       ) : null}
 
-      <div className="travel-option-action">
-        <span>
-          {href ? "Перейти к оформлению" : "Ссылка пока недоступна"}
-        </span>
-        {href ? <ExternalLink size={14} aria-hidden="true" /> : null}
+
+      {option.preference_reasons?.length ? (
+        <div className="travel-option-preference-reasons">
+          {option.preference_reasons.slice(0, 2).map((reason) => (
+            <span key={reason}>{reason}</span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="travel-option-actions">
+        {canAccept ? (
+          <button
+            type="button"
+            disabled={isAccepting || isAccepted}
+            onClick={() => onAccept?.(option)}
+          >
+            {isAccepted ? (
+              <><CheckCircle2 size={14} aria-hidden="true" /> Поездка сохранена</>
+            ) : isAccepting ? "Сохраняем…" : "Выбрать поездку"}
+          </button>
+        ) : null}
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Оформить на Tutu: ${option.title}`}
+          >
+            Оформить на Tutu <ExternalLink size={14} aria-hidden="true" />
+          </a>
+        ) : (
+          <span>Ссылка оформления пока недоступна</span>
+        )}
       </div>
-    </>
-  );
-
-  if (!href) {
-    return <article className="travel-option-card travel-option-card-disabled">{content}</article>;
-  }
-
-  const isExternal = href.startsWith("http://") || href.startsWith("https://");
-  return (
-    <a
-      className="travel-option-card"
-      href={href}
-      target={isExternal ? "_blank" : undefined}
-      rel={isExternal ? "noreferrer" : undefined}
-      aria-label={`Открыть вариант: ${option.title}, ${formatMoney(option.total_price, option.currency)}`}
-    >
-      {content}
-    </a>
+      </>
+    </article>
   );
 }
 

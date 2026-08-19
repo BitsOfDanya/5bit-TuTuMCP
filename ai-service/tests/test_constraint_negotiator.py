@@ -38,7 +38,7 @@ class FakeAsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_maps_product_to_dedicated_search_endpoint(monkeypatch) -> None:
+async def test_routes_round_trip_through_constraint_negotiator(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.integrations.constraint_negotiator.client.httpx.AsyncClient",
         FakeAsyncClient,
@@ -57,16 +57,22 @@ async def test_maps_product_to_dedicated_search_endpoint(monkeypatch) -> None:
         )
     )
     assert result["status"] == "success"
-    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/products/search"
+    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/from-spec/public"
     assert FakeAsyncClient.payload == {
-        "service_type": "train",
-        "origin": "Москва",
-        "destination": "Казань",
-        "start_date": "2026-09-01",
-        "end_date": "2026-09-05",
-        "preferred_time": "10:30:00",
-        "travelers": 2,
-        "budget": 30_000,
+        "trip": {
+            "origin": "Москва",
+            "destination": "Казань",
+            "outbound_date": "2026-09-01",
+            "return_date": "2026-09-05",
+            "outbound_after": "10:30:00",
+            "return_before": None,
+            "travelers": 2,
+            "budget": 30_000,
+            "excluded_transport": [],
+            "preferred_transport": ["train"],
+            "max_transfers": None,
+            "hard_constraints": ["transport", "budget", "outbound_after"],
+        }
     }
 
 
@@ -87,6 +93,7 @@ async def test_searches_complete_one_way_trip(monkeypatch) -> None:
         )
     )
     assert result["status"] == "success"
+    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/products/search"
     assert FakeAsyncClient.payload["service_type"] == "bus"
     assert FakeAsyncClient.payload["end_date"] is None
 

@@ -12,6 +12,12 @@ export interface DecisionResult {
   };
 }
 
+export interface AcceptedItinerary {
+  trip: Record<string, unknown>;
+  journey: DecisionCandidate["journey"];
+  updated_at: string;
+}
+
 export interface DecisionCandidate {
   id: string;
   rank?: number;
@@ -27,10 +33,28 @@ export interface DecisionCandidate {
     total_price: number;
     outbound: SearchSegment;
     inbound: SearchSegment;
+    hotel?: SearchOption["hotel"];
+  };
+  exact?: boolean;
+  replaced_components?: string[];
+  preserved_components?: string[];
+  impact?: {
+    price_delta: number;
+    savings: number;
+    price_change_percent?: number | null;
+    outbound_departure_delta_minutes: number;
+    inbound_arrival_delta_minutes: number;
+    components_changed: string[];
+    components_preserved: string[];
+    disruption_count: number;
   };
   personalization?: { reasons?: string[]; rank_before?: number; rank_after?: number } | null;
   insights?: Array<{ title: string; description: string; severity: string }>;
   relaxations?: Array<{ title: string; description: string }>;
+}
+
+export function getCurrentItinerary(): Promise<AcceptedItinerary> {
+  return apiRequest("/api/v1/trips/current");
 }
 
 export async function acceptSearchOption(
@@ -66,6 +90,10 @@ export async function acceptSearchOption(
       },
     }),
   });
+}
+
+export function canAcceptSearchOption(option: SearchOption): boolean {
+  return Boolean(option.outbound && option.inbound);
 }
 
 export function rescueTrip(message: string): Promise<DecisionResult> {

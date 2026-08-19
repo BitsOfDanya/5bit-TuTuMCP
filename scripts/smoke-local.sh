@@ -8,12 +8,14 @@ CONSTRAINT_URL="${CONSTRAINT_URL:-http://127.0.0.1:8010}"
 AI_URL="${AI_URL:-http://127.0.0.1:8020}"
 BACKEND_URL="${BACKEND_URL:-http://127.0.0.1:8000}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
+TRIP_RESCUE_URL="${TRIP_RESCUE_URL:-http://127.0.0.1:8030}"
 trap 'rm -f "$RESPONSE_FILE" "$HISTORY_FILE"' EXIT
 
 curl --fail --silent --show-error "$CONSTRAINT_URL/health" >/dev/null
 curl --fail --silent --show-error "$AI_URL/ready" >/dev/null
 curl --fail --silent --show-error "$BACKEND_URL/ready" >/dev/null
 curl --fail --silent --show-error "$FRONTEND_URL/" >/dev/null
+curl --fail --silent --show-error "$TRIP_RESCUE_URL/health" >/dev/null
 
 USER_ID="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 curl --fail --silent --show-error \

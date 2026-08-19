@@ -7,7 +7,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { server } from "../test/server";
 import type { User } from "../types";
-import { ChatWidget } from "./ChatWidget";
+import { ChatWidget, type ChatExperience } from "./ChatWidget";
 
 const authenticatedUser: User = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -25,11 +25,16 @@ function renderChat() {
 
 function ChatWidgetHarness() {
   const [isOpen, setOpen] = useState(false);
+  const [experience, setExperience] = useState<ChatExperience>("chat");
   return (
     <ChatWidget
       user={authenticatedUser}
       isOpen={isOpen}
       onOpenChange={setOpen}
+      experience={experience}
+      onExperienceChange={setExperience}
+      onRequireAuth={() => undefined}
+      onNotify={() => undefined}
     />
   );
 }
@@ -151,19 +156,142 @@ test("renders MCP search results as external booking links", async () => {
   await user.type(screen.getByLabelText("Сообщение Джарвеллу"), "Покажи варианты");
   await user.click(screen.getByRole("button", { name: "Отправить сообщение" }));
 
-  const card = await screen.findByRole("link", {
-    name: /открыть вариант: Москва — Казань/i,
+  const options = await screen.findByLabelText("Найденные варианты");
+  const card = within(options).getByRole("article");
+  const checkout = within(card).getByRole("link", {
+    name: /оформить на tutu: Москва — Казань/i,
   });
   expect(within(card).getByText("18 900 ₽")).toBeInTheDocument();
   expect(card).toHaveTextContent("10:00");
   expect(card).toHaveTextContent("21:30");
-  expect(card).toHaveTextContent("Перейти к оформлению");
-  expect(card).toHaveAttribute(
+  expect(card).toHaveTextContent("Оформить на Tutu");
+  expect(checkout).toHaveAttribute(
     "href",
     "https://www.tutu.ru/poezda/view_d.php?np=002E",
   );
-  expect(card).toHaveAttribute("target", "_blank");
+  expect(checkout).toHaveAttribute("target", "_blank");
   expect(screen.queryByText("Перейти к вариантам")).not.toBeInTheDocument();
+});
+
+test("accepts a round trip and runs a non-mutating What-if simulation", async () => {
+  const user = userEvent.setup();
+  let savedTrips = 0;
+  const outbound = {
+    mode: "train",
+    origin: "Москва",
+    destination: "Казань",
+    departure: "2026-09-01T10:00:00+03:00",
+    arrival: "2026-09-01T21:30:00+03:00",
+    price: 9_500,
+    currency: "RUB",
+    duration_minutes: 690,
+    transfers: 0,
+    carrier: "ФПК",
+    voyage_no: "002Э",
+    booking_url: "https://www.tutu.ru/outbound",
+  };
+  const inbound = {
+    ...outbound,
+    origin: "Казань",
+    destination: "Москва",
+    departure: "2026-09-05T18:00:00+03:00",
+    arrival: "2026-09-06T05:30:00+03:00",
+    price: 9_400,
+    booking_url: "https://www.tutu.ru/inbound",
+  };
+  server.use(
+    http.post("/api/v1/agent/chat", () =>
+      HttpResponse.json({
+        user_id: authenticatedUser.id,
+        session_id: "44444444-4444-4444-8444-444444444444",
+        response: "Нашёл вариант. Можно сохранить его для Rescue и What-if.",
+        trip: {
+          service_type: "train",
+          origin: "Москва",
+          destination: "Казань",
+          start_date: "2026-09-01",
+          end_date: "2026-09-05",
+          preferred_time: "10:00:00",
+          passengers: 1,
+          budget: 30_000,
+          currency: "RUB",
+          is_international: null,
+        },
+        missing_fields: [],
+        is_complete: true,
+        next_action: "redirect_to_search",
+        decision_intent: "search",
+        redirect_url: null,
+        tools_used: ["negotiate_constraints"],
+        tool_statuses: { negotiate_constraints: "success" },
+        search_options: [{
+          id: "journey-roundtrip",
+          kind: "journey",
+          title: "Москва — Казань — Москва",
+          explanation: "Без пересадок",
+          total_price: 18_900,
+          currency: "RUB",
+          outbound,
+          inbound,
+          hotel: null,
+          changes: [],
+          action_url: outbound.booking_url,
+          tracking_payload: null,
+        }],
+      }),
+    ),
+    http.put("/api/v1/trips/current", async ({ request }) => {
+      savedTrips += 1;
+      const body = await request.json() as { journey: { id: string } };
+      expect(body.journey.id).toBe("journey-roundtrip");
+      return HttpResponse.json({ ...body, updated_at: "2026-08-19T12:00:00Z" });
+    }),
+    http.post("/api/v1/trips/current/what-if", async ({ request }) => {
+      expect(await request.json()).toEqual({ message: "А если вернуться до 10 утра?" });
+      return HttpResponse.json({
+        kind: "what_if",
+        result: {
+          simulation: true,
+          candidates: [{
+            id: "what-if-1",
+            rank: 1,
+            summary: { headline: "Вернуться до 10 утра", price_delta_label: "+2 100 ₽" },
+            journey: {
+              id: "what-if-1",
+              total_price: 21_000,
+              outbound,
+              inbound: { ...inbound, arrival: "2026-09-06T09:10:00+03:00" },
+              hotel: null,
+            },
+            impact: {
+              price_delta: 2_100,
+              savings: 0,
+              outbound_departure_delta_minutes: 0,
+              inbound_arrival_delta_minutes: 220,
+              components_changed: ["inbound"],
+              components_preserved: ["outbound"],
+              disruption_count: 1,
+            },
+          }],
+        },
+      });
+    }),
+  );
+
+  renderChat();
+  await user.click(screen.getByRole("button", { name: "Открыть чат с Джарвеллом" }));
+  await user.type(screen.getByLabelText("Сообщение Джарвеллу"), "Найди поездку туда и обратно");
+  await user.click(screen.getByRole("button", { name: "Отправить сообщение" }));
+  await user.click(await screen.findByRole("button", { name: "Выбрать поездку" }));
+  await waitFor(() => expect(savedTrips).toBe(1));
+
+  await user.click(screen.getByRole("tab", { name: /А что если/ }));
+  await user.type(screen.getByLabelText("Какой сценарий сравнить?"), "А если вернуться до 10 утра?");
+  await user.click(screen.getByRole("button", { name: "Сравнить" }));
+
+  expect(await screen.findByText("Вернуться до 10 утра")).toBeInTheDocument();
+  expect(screen.getByText(/Текущий вариант не меняю/)).toBeInTheDocument();
+  expect(savedTrips).toBe(1);
 });
 
 test("chat dialog has no automated accessibility violations", async () => {

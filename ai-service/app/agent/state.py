@@ -1,7 +1,7 @@
 from typing import Any, TypedDict
 
 from app.domain.search import SearchOption
-from app.domain.travel import AgentTurn, TravelPlan, TripDetails
+from app.domain.travel import AgentTurn, DecisionIntent, TravelPlan, TripDetails
 
 
 class TravelWorkflowState(TypedDict, total=False):
@@ -16,3 +16,4 @@ class TravelWorkflowState(TypedDict, total=False):
     missing_fields: list[str]
     next_action: str
     redirect_url: str | None
+    decision_intent: DecisionIntent

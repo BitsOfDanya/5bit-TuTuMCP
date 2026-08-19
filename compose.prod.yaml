@@ -65,6 +65,10 @@ services:
       AI_SERVICE_URL: http://ai-service:8020
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
       AI_SERVICE_TIMEOUT_SECONDS: ${AI_SERVICE_TIMEOUT_SECONDS:-90}
+      TRIP_RESCUE_URL: http://trip-rescue:8030
+      TRIP_RESCUE_TIMEOUT_SECONDS: ${TRIP_RESCUE_TIMEOUT_SECONDS:-120}
+      SMART_TRIP_TRACKER_URL: http://smart-trip-tracker:8001
+      SMART_TRIP_TRACKER_TIMEOUT_SECONDS: ${SMART_TRIP_TRACKER_TIMEOUT_SECONDS:-60}
       MAX_DOCUMENT_SIZE_BYTES: ${MAX_DOCUMENT_SIZE_BYTES:-10485760}
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-tutumcp_session}
@@ -79,6 +83,10 @@ services:
       - internal
     depends_on:
       ai-service:
+        condition: service_healthy
+      trip-rescue:
+        condition: service_healthy
+      smart-trip-tracker:
         condition: service_healthy
     healthcheck:
       <<: *python-healthcheck
@@ -150,11 +158,72 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health', timeout=3).read()"]
     stop_grace_period: 30s
 
+  trip-rescue:
+    <<: *runtime
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_REPOSITORY:-bitsofdanya/5bit-tutumcp}-trip-rescue:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: deploy/trip-rescue.Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+      AGENT_SYSTEM_PROMPT: ${AGENT_SYSTEM_PROMPT:-Be concise, friendly, and accurate.}
+      TUTU_MCP_URL: ${TUTU_MCP_URL:-https://mcp.tutu.ru/mcp}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8030
+      APP_DEBUG: "false"
+      CORS_ORIGINS: ${PUBLIC_ORIGIN:-https://travel.example.com}
+      PREFERENCE_STORE_PATH: /data/preferences.json
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      NEGOTIATOR_RATE_LIMIT_PER_MINUTE: ${NEGOTIATOR_RATE_LIMIT_PER_MINUTE:-60}
+      MCP_TOOLS_CACHE_TTL_SECONDS: ${MCP_TOOLS_CACHE_TTL_SECONDS:-300}
+      MCP_CONNECT_TIMEOUT_SECONDS: ${MCP_CONNECT_TIMEOUT_SECONDS:-10}
+      MCP_READ_TIMEOUT_SECONDS: ${MCP_READ_TIMEOUT_SECONDS:-90}
+      MCP_WRITE_TIMEOUT_SECONDS: ${MCP_WRITE_TIMEOUT_SECONDS:-30}
+      MCP_POOL_TIMEOUT_SECONDS: ${MCP_POOL_TIMEOUT_SECONDS:-10}
+      MCP_OPERATION_TIMEOUT_SECONDS: ${MCP_OPERATION_TIMEOUT_SECONDS:-120}
+      MCP_MAX_ATTEMPTS: ${MCP_MAX_ATTEMPTS:-3}
+      MCP_RETRY_BASE_DELAY_SECONDS: ${MCP_RETRY_BASE_DELAY_SECONDS:-0.5}
+      MCP_RETRY_MAX_DELAY_SECONDS: ${MCP_RETRY_MAX_DELAY_SECONDS:-4}
+    volumes:
+      - trip_rescue_data:/data
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    networks:
+      - internal
+    healthcheck:
+      <<: *python-healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8030/health', timeout=3).read()"]
+    stop_grace_period: 30s
+
+  smart-trip-tracker:
+    <<: *runtime
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_REPOSITORY:-bitsofdanya/5bit-tutumcp}-smart-trip-tracker:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: deploy/smart-trip-tracker.Dockerfile
+    environment:
+      TRIP_PROVIDER: tutu
+      TUTU_MCP_URL: ${TUTU_MCP_URL:-https://mcp.tutu.ru/mcp}
+      DATABASE_PATH: /data/smart-trip-tracker.db
+    volumes:
+      - smart_trip_tracker_data:/data
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - internal
+    healthcheck:
+      <<: *python-healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).read()"]
+    stop_grace_period: 30s
+
 networks:
   edge:
   internal:
 
 volumes:
   backend_data:
+  trip_rescue_data:
+  smart_trip_tracker_data:
   caddy_data:
   caddy_config:

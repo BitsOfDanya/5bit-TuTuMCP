@@ -29,6 +29,8 @@ jobs:
             backend/pyproject.toml
             ai-service/pyproject.toml
             constraint-negotiator/requirements.lock.txt
+            trip-rescue/requirements.lock.txt
+            smart-trip-tracker/backend/pyproject.toml
 
       - uses: actions/setup-node@v4
         with:
@@ -42,7 +44,7 @@ jobs:
           backend/.venv/bin/pip install -e './backend[dev]'
           cd backend
           .venv/bin/ruff check app tests
-          .venv/bin/pytest -q
+          .venv/bin/python -m pytest -q
           .venv/bin/python -m alembic check
 
       - name: Test AI service
@@ -51,14 +53,29 @@ jobs:
           ai-service/.venv/bin/pip install -e './ai-service[dev]'
           cd ai-service
           .venv/bin/ruff check app tests
-          .venv/bin/pytest -q
+          .venv/bin/python -m pytest -q
 
       - name: Test constraint negotiator
         run: |
           python -m venv constraint-negotiator/.venv
           constraint-negotiator/.venv/bin/pip install -r constraint-negotiator/requirements.lock.txt
           cd constraint-negotiator
-          .venv/bin/pytest -q
+          .venv/bin/python -m pytest -q
+
+      - name: Test Trip Rescue and Decision Intelligence
+        run: |
+          python -m venv trip-rescue/.venv
+          trip-rescue/.venv/bin/pip install -r trip-rescue/requirements.lock.txt
+          cd trip-rescue
+          .venv/bin/python -m pytest -q
+
+      - name: Test Smart Trip Tracker
+        run: |
+          python -m venv smart-trip-tracker/backend/.venv
+          smart-trip-tracker/backend/.venv/bin/pip install -e './smart-trip-tracker/backend[dev]'
+          cd smart-trip-tracker/backend
+          .venv/bin/ruff check app tests
+          .venv/bin/python -m pytest -q
 
       - name: Test and build frontend
         working-directory: frontend
@@ -83,6 +100,10 @@ jobs:
             dockerfile: deploy/ai-service.Dockerfile
           - service: constraint-negotiator
             dockerfile: deploy/constraint-negotiator.Dockerfile
+          - service: trip-rescue
+            dockerfile: deploy/trip-rescue.Dockerfile
+          - service: smart-trip-tracker
+            dockerfile: deploy/smart-trip-tracker.Dockerfile
     steps:
       - uses: actions/checkout@v4
 

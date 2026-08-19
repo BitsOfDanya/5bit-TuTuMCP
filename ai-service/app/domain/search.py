@@ -21,6 +21,7 @@ class SearchSegment(BaseModel):
     transfers: int = Field(default=0, ge=0)
     carrier: str | None = None
     voyage_no: str | None = None
+    booking_url: str | None = None
 
 
 class SearchHotel(BaseModel):
@@ -34,6 +35,7 @@ class SearchHotel(BaseModel):
     check_out: str | None = None
     nights: int | None = Field(default=None, ge=1)
     photo_url: str | None = None
+    booking_url: str | None = None
 
 
 class TrackingTripSpec(BaseModel):

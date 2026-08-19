@@ -38,12 +38,25 @@ class TripDetails(BaseModel):
         return value.upper()
 
 
+class DecisionIntent(StrEnum):
+    SEARCH = "search"
+    PREFERENCES = "preferences"
+    GROUP_PREFERENCES = "group_preferences"
+    RESCUE = "rescue"
+    WHAT_IF = "what_if"
+
+
+class IntentClassification(BaseModel):
+    intent: DecisionIntent = DecisionIntent.SEARCH
+
+
 class AgentTurn(BaseModel):
     assistant_message: str = Field(
         min_length=1,
         description="Concise Markdown reply for the traveler.",
     )
     trip: TripDetails
+    decision_intent: DecisionIntent = DecisionIntent.SEARCH
 
 
 class PlanAction(StrEnum):
@@ -88,6 +101,7 @@ class AgentNextAction(StrEnum):
     COLLECT_TRIP_DETAILS = "collect_trip_details"
     UPLOAD_PASSENGER_DOCUMENTS = "upload_passenger_documents"
     REDIRECT_TO_SEARCH = "redirect_to_search"
+    DECISION_SUPPORT = "decision_support"
 
 
 def missing_trip_fields(trip: TripDetails) -> list[str]:

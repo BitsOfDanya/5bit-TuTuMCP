@@ -8,6 +8,8 @@ from app.agent.graph import build_travel_workflow
 from app.agent.tools.travel import build_search_redirect, validate_trip_details
 from app.domain.travel import (
     AgentTurn,
+    DecisionIntent,
+    IntentClassification,
     PlanAction,
     PlanStep,
     TravelPlan,
@@ -51,6 +53,11 @@ class FakeExecutor:
         }
 
 
+class FakeDecisionClassifier:
+    async def ainvoke(self, _: list[Any]) -> IntentClassification:
+        return IntentClassification(intent=DecisionIntent.WHAT_IF)
+
+
 @pytest.mark.asyncio
 async def test_plan_execute_workflow_merges_state_and_runs_tools() -> None:
     workflow = build_travel_workflow(FakePlanner(), FakeExecutor())
@@ -73,6 +80,27 @@ async def test_plan_execute_workflow_merges_state_and_runs_tools() -> None:
         "determine_next_action",
         "build_search_redirect",
     ]
+
+
+@pytest.mark.asyncio
+async def test_decision_intent_bypasses_new_trip_search() -> None:
+    workflow = build_travel_workflow(
+        FakePlanner(),
+        FakeExecutor(),
+        classifier=FakeDecisionClassifier(),
+    )
+
+    result = await workflow.ainvoke(
+        {
+            "messages": [{"role": "user", "content": "А если вернуться до 10?"}],
+            "current_trip": TripDetails(),
+        }
+    )
+
+    assert result["structured_response"].decision_intent is DecisionIntent.WHAT_IF
+    assert result["next_action"] == "decision_support"
+    assert result["search_options"] == []
+    assert "не изменится" in result["structured_response"].assistant_message
 
 
 def test_plan_allows_negotiation_before_redirect() -> None:

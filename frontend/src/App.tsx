@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { getSession, logout } from "./api/auth";
 import { AuthModal } from "./components/AuthModal";
 import { ChatWidget } from "./components/ChatWidget";
+import type { ChatExperience } from "./components/ChatWidget";
 import { HomePage } from "./components/HomePage";
 import type { AuthSession, User } from "./types";
 
@@ -12,6 +13,7 @@ export function App() {
   const queryClient = useQueryClient();
   const [isAuthOpen, setAuthOpen] = useState(false);
   const [isChatOpen, setChatOpen] = useState(false);
+  const [chatExperience, setChatExperience] = useState<ChatExperience>("chat");
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
   const sessionQuery = useQuery({
@@ -44,6 +46,11 @@ export function App() {
     notify("Готово! Вы вошли в свой аккаунт.");
   }
 
+  function openChat(experience: ChatExperience) {
+    setChatExperience(experience);
+    setChatOpen(true);
+  }
+
   async function handleLogout() {
     try {
       await logout();
@@ -60,12 +67,15 @@ export function App() {
         user={user}
         onLogin={() => setAuthOpen(true)}
         onLogout={handleLogout}
-        onOpenAssistant={() => setChatOpen(true)}
+        onOpenAssistant={() => openChat("chat")}
+        onOpenPreferences={() => openChat("preferences")}
         onStub={notify}
       />
       <AuthModal
         isOpen={isAuthOpen}
-        onClose={() => setAuthOpen(false)}
+        onClose={() => {
+          setAuthOpen(false);
+        }}
         onAuthenticated={handleAuthenticated}
         onStub={notify}
       />
@@ -74,6 +84,13 @@ export function App() {
         user={user}
         isOpen={isChatOpen}
         onOpenChange={setChatOpen}
+        experience={chatExperience}
+        onExperienceChange={setChatExperience}
+        onRequireAuth={() => {
+          setAuthOpen(true);
+          notify("Войдите, чтобы сохранить поездку и использовать Decision Intelligence.");
+        }}
+        onNotify={notify}
       />
       {toast ? (
         <div className="toast" role="status">

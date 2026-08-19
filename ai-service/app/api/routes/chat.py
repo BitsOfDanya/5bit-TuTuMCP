@@ -39,4 +39,5 @@ async def chat(request: AIChatRequest, agent: AgentDep) -> AIChatResponse:
         tool_statuses=result.get("tool_statuses", {}),
         search_options=result.get("search_options", []),
         redirect_url=result.get("redirect_url"),
+        decision_intent=turn.decision_intent,
     )

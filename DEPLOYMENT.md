@@ -1,22 +1,23 @@
 # Production deployment
 
-Production consists of four containers behind Caddy:
+Production consists of six containers behind Caddy:
 
 ```text
 Internet -> Caddy (TLS + React SPA) -> backend -> ai-service -> constraint-negotiator -> Tutu MCP
-                                          |
-                                          +-> persistent SQLite volume
+                                          +-> trip-rescue -> Tutu MCP / OpenAI
+                                          +-> smart-trip-tracker -> Tutu MCP
+                                          +-> persistent application volumes
 ```
 
-Only Caddy publishes host ports. The three Python services use a private Docker network with
+Only Caddy publishes host ports. The five Python services use a private Docker network with
 outbound access for OpenAI and Tutu MCP,
-all four services run as unprivileged users with a read-only root filesystem, drop Linux capabilities and
+all six services run as unprivileged users with a read-only root filesystem, drop Linux capabilities and
 have health checks. Caddy obtains and renews public TLS certificates automatically.
 
 ## 1. Server and DNS
 
 Use a Linux server with Docker Engine 24+ and the Compose v2 plugin. Point the domain's A/AAAA
-records to the server and allow inbound TCP 80/443 and UDP 443. Keep ports 8000, 8010 and 8020
+records to the server and allow inbound TCP 80/443 and UDP 443. Keep ports 8000, 8001, 8010, 8020 and 8030
 closed; they are not published by Compose.
 
 ## 2. Production environment
@@ -41,7 +42,7 @@ the `sha-...` tag published by CI, so rollback is deterministic.
 
 ## 3. Build and publish images
 
-Log in to the registry and publish all four images:
+Log in to the registry and publish all six images:
 
 ```bash
 docker login ghcr.io
@@ -77,7 +78,7 @@ docker compose --env-file .env.production -f compose.prod.yaml ps
 docker compose --env-file .env.production -f compose.prod.yaml logs -f --tail=200
 ```
 
-Create a transactionally consistent SQLite backup:
+Create backups of the persistent application state:
 
 ```bash
 make prod-backup ENV_FILE=.env.production

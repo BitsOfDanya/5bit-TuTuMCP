@@ -11,6 +11,8 @@ from app.database import dispose_database
 from app.db import create_db_and_tables
 from app.schemas import HealthResponse, ReadinessResponse
 from app.tracker_api import router as tracker_router
+from app.preferences_api import router as preferences_router
+from app.trips_api import router as trips_router
 
 FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
@@ -30,6 +32,8 @@ app = FastAPI(
 app.include_router(agent_router)
 app.include_router(auth_router)
 app.include_router(tracker_router)
+app.include_router(preferences_router)
+app.include_router(trips_router)
 
 
 @app.get("/health")

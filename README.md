@@ -7,13 +7,16 @@
 ## Что реализовано
 
 - адаптивная главная: hero, продуктовые вкладки, поиск, промо, подборки и footer;
-- кнопки разделов и бронирования работают как информативные заглушки;
+- найденные варианты можно сохранить и оформить через серверный `create_checkout_link` Tutu;
 - собственная авторизация по одноразовому коду или email/password;
 - пользователи и одноразовые challenge хранятся в SQLite;
 - пароль хешируется Argon2, сессия хранится в подписанной HttpOnly cookie;
 - история чатов хранится по пользователям в SQLite и управляется через Alembic;
 - LangGraph-агент вынесен в отдельный stateless `ai-service`;
 - `constraint-negotiator` подключён к агенту как инструмент поиска и ослабления ограничений;
+- Trip Rescue меняет только затронутую часть принятой поездки и предлагает ближайший компромисс;
+- What-if сравнивает гипотезу без изменения принятой поездки, а Decision Explanation объясняет выбор;
+- Preference Learning, Cold Start и Group Preferences персонализируют обычный поиск и Rescue;
 - найденный Jarvell вариант можно передать в Smart Trip Tracker и отслеживать прямо во frontend;
 - международные документы распознаются из PNG, JPEG и PDF;
 - компонентные, accessibility и FastAPI-тесты.
@@ -22,8 +25,8 @@
 
 ```text
 frontend -> backend :8000 -> ai-service :8020 -> OpenAI
-              |                   |
               |                   +-> constraint-negotiator :8010 -> Tutu MCP
+              +-> trip-rescue :8030 -> Tutu MCP / OpenAI
               +-> smart-trip-tracker :8001 -> Tutu MCP
 ```
 
@@ -31,6 +34,7 @@ frontend -> backend :8000 -> ai-service :8020 -> OpenAI
 - `ai-service` владеет LangGraph, OpenAI, инструментами и распознаванием документов;
 - `constraint-negotiator` ищет варианты и предлагает ослабление ограничений;
 - `smart-trip-tracker` хранит историю цены выбранной комбинации и формирует рекомендацию;
+- `trip-rescue` владеет Rescue, What-if, explanations и persistent preference profiles;
 - frontend продолжает работать только с публичным backend API.
 
 ## Запуск AI-сервисов
@@ -56,6 +60,7 @@ make dev
 - smart-trip-tracker — `http://127.0.0.1:8001`;
 - constraint-negotiator — `http://127.0.0.1:8010`;
 - ai-service — `http://127.0.0.1:8020`.
+- trip-rescue — `http://127.0.0.1:8030`.
 
 Логи находятся в `.local/logs`. Для реального end-to-end запроса через всю цепочку
 выполните в другом терминале:
@@ -67,6 +72,18 @@ make smoke
 `make smoke` отправляет полный маршрут через Vite proxy и публичный backend API, проверяет
 сохранение истории, OpenAI-агента и инструмент `constraint-negotiator`. Вызов использует
 OpenAI API и внешний Tutu MCP.
+
+### Как проверить Decision Intelligence в интерфейсе
+
+1. Откройте `http://127.0.0.1:5173` и войдите в аккаунт.
+2. В карточке «Какой вы путешественник?» нажмите «Получить» и сделайте четыре выбора.
+3. В Джарвелле запросите поездку туда и обратно, затем нажмите «Выбрать поездку».
+4. В появившемся блоке используйте «Планы поменялись» для Rescue или «А что если…» для
+   отдельной симуляции. Кнопка «Оформить на Tutu» использует checkout URL, созданный на backend.
+5. Для нескольких пассажиров нажмите «Создать группу» и добавьте profile ID остальных участников.
+
+После перезагрузки принятая поездка остаётся доступной. Личный профиль хранится отдельно,
+а групповой профиль вычисляется заново и не изменяет персональные preferences.
 
 ### Ручной запуск
 
@@ -146,12 +163,15 @@ npm test
 
 cd ../backend
 .venv/bin/ruff check app tests
-.venv/bin/pytest -q
+.venv/bin/python -m pytest -q
 .venv/bin/alembic check
 
 cd ../ai-service
 .venv/bin/ruff check app tests
-.venv/bin/pytest -q
+.venv/bin/python -m pytest -q
+
+cd ../trip-rescue
+.venv/bin/python -m pytest -q
 ```
 
 После `npm run build` FastAPI автоматически раздаёт `frontend/dist` с корня.

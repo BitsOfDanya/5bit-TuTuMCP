@@ -1,4 +1,5 @@
 import { apiRequest } from "./auth";
+import type { SearchOption } from "./chat";
 
 export interface ColdStartOption {
   id: string;
@@ -74,6 +75,14 @@ export interface GroupPreferenceSummary {
   highlights: string[];
 }
 
+export interface GroupRerankItem {
+  candidate_id: string;
+  rank_before: number;
+  rank_after: number;
+  preference_score: number;
+  reasons: string[];
+}
+
 export function buildGroupProfile(
   groupId: string,
   participantProfileIds: string[],
@@ -83,6 +92,33 @@ export function buildGroupProfile(
     body: JSON.stringify({
       group_id: groupId,
       participant_profile_ids: participantProfileIds,
+    }),
+  });
+}
+
+export function rerankGroupCandidates(
+  groupId: string,
+  participantProfileIds: string[],
+  candidates: SearchOption[],
+): Promise<{ result: { group: GroupPreferenceSummary; items: GroupRerankItem[] } }> {
+  const journeys = candidates.flatMap((candidate) => {
+    if (!candidate.outbound || !candidate.inbound) {
+      return [];
+    }
+    return [{
+      id: candidate.id,
+      total_price: candidate.total_price,
+      outbound: candidate.outbound,
+      inbound: candidate.inbound,
+      hotel: candidate.hotel,
+    }];
+  });
+  return apiRequest("/api/v1/preferences/group/rerank", {
+    method: "POST",
+    body: JSON.stringify({
+      group_id: groupId,
+      participant_profile_ids: participantProfileIds,
+      candidates: journeys,
     }),
   });
 }

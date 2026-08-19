@@ -139,6 +139,21 @@ class TripRescueClient:
             },
         )
 
+    async def rerank_preferences(
+        self,
+        *,
+        profile_id: str,
+        candidates: list[dict[str, object]],
+    ) -> dict[str, Any]:
+        return await self._request_json(
+            "POST",
+            "/api/v1/preferences/rerank",
+            json={
+                "profile_id": profile_id,
+                "candidates": candidates,
+            },
+        )
+
     async def _request_json(self, method: str, path: str, **kwargs: object) -> dict[str, Any]:
         try:
             async with httpx.AsyncClient(

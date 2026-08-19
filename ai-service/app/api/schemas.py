@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 from app.domain.documents import PassengerDocumentData
 from app.domain.search import SearchOption
-from app.domain.travel import AgentNextAction, TravelPlan, TripDetails
+from app.domain.travel import AgentNextAction, DecisionIntent, TravelPlan, TripDetails
 
 
 class AIMessage(BaseModel):
@@ -28,6 +28,7 @@ class AIChatResponse(BaseModel):
     tool_statuses: dict[str, str]
     search_options: list[SearchOption] = Field(default_factory=list)
     redirect_url: str | None = None
+    decision_intent: DecisionIntent = DecisionIntent.SEARCH
 
 
 class DocumentExtractionResponse(BaseModel):

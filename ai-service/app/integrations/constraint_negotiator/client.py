@@ -26,20 +26,54 @@ class ConstraintNegotiatorClient:
         if trip.service_type is TravelService.HOTEL and not trip.end_date:
             return {"status": "skipped", "reason": "Check-out date is required for hotel search."}
 
-        payload = {
-            "service_type": trip.service_type.value,
-            "origin": trip.origin,
-            "destination": trip.destination,
-            "start_date": trip.start_date.isoformat(),
-            "end_date": trip.end_date.isoformat() if trip.end_date else None,
-            "preferred_time": trip.preferred_time.isoformat() if trip.preferred_time else None,
-            "travelers": trip.passengers,
-            "budget": trip.budget,
-        }
+        use_negotiator = (
+            trip.service_type is not TravelService.HOTEL
+            and trip.end_date is not None
+            and trip.origin is not None
+        )
+        if use_negotiator:
+            hard_constraints = ["transport"]
+            if trip.budget is not None:
+                hard_constraints.append("budget")
+            if trip.preferred_time is not None:
+                hard_constraints.append("outbound_after")
+            path = "/api/v1/negotiator/from-spec/public"
+            payload = {
+                "trip": {
+                    "origin": trip.origin,
+                    "destination": trip.destination,
+                    "outbound_date": trip.start_date.isoformat(),
+                    "return_date": trip.end_date.isoformat(),
+                    "outbound_after": (
+                        trip.preferred_time.isoformat() if trip.preferred_time else None
+                    ),
+                    "return_before": None,
+                    "travelers": trip.passengers,
+                    "budget": trip.budget,
+                    "excluded_transport": [],
+                    "preferred_transport": [trip.service_type.value],
+                    "max_transfers": None,
+                    "hard_constraints": hard_constraints,
+                }
+            }
+        else:
+            path = "/api/v1/negotiator/products/search"
+            payload = {
+                "service_type": trip.service_type.value,
+                "origin": trip.origin,
+                "destination": trip.destination,
+                "start_date": trip.start_date.isoformat(),
+                "end_date": trip.end_date.isoformat() if trip.end_date else None,
+                "preferred_time": (
+                    trip.preferred_time.isoformat() if trip.preferred_time else None
+                ),
+                "travelers": trip.passengers,
+                "budget": trip.budget,
+            }
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.post(
-                    f"{self._base_url}/api/v1/negotiator/products/search",
+                    f"{self._base_url}{path}",
                     json=payload,
                 )
                 response.raise_for_status()
