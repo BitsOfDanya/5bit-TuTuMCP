@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.api import router as agent_router
 from app.auth_api import router as auth_router
+from app.database import dispose_database
 from app.db import create_db_and_tables
 from app.schemas import HealthResponse
 
@@ -16,6 +17,7 @@ FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     create_db_and_tables()
     yield
+    await dispose_database()
 
 
 app = FastAPI(

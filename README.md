@@ -11,7 +11,9 @@
 - собственная авторизация по одноразовому коду или email/password;
 - пользователи и одноразовые challenge хранятся в SQLite;
 - пароль хешируется Argon2, сессия хранится в подписанной HttpOnly cookie;
-- существующий LangChain agent API сохранён;
+- история чатов хранится по пользователям в SQLite и управляется через Alembic;
+- LangGraph-агент работает по схеме `planner -> executor -> finalizer`;
+- международные документы распознаются из PNG, JPEG и PDF;
 - компонентные, accessibility и FastAPI-тесты.
 
 ## Backend
@@ -24,6 +26,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]'
 cp .env.example .env
+alembic upgrade head
 fastapi dev
 ```
 
@@ -35,8 +38,11 @@ API и OpenAPI доступны на `http://127.0.0.1:8000` и
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/agent/chat \
   -H 'Content-Type: application/json' \
-  -d '{"message":"Hello!"}'
+  -d '{"user_id":"11111111-1111-1111-1111-111111111111","message":"Нужен поезд из Москвы в Казань 1 сентября, нас двое, бюджет 20000 рублей"}'
 ```
+
+Ответ содержит `session_id`, нормализованный `trip`, план, использованные инструменты,
+`next_action` и `redirect_url`. Для продолжения диалога передавайте тот же `session_id`.
 
 ## Frontend
 
@@ -62,6 +68,7 @@ npm test
 cd ../backend
 .venv/bin/ruff check app tests
 .venv/bin/pytest -q
+.venv/bin/alembic check
 ```
 
 После `npm run build` FastAPI автоматически раздаёт `frontend/dist` с корня.

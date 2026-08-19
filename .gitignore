@@ -13,6 +13,11 @@ __pycache__/
 .venv/
 venv/
 
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
 # Runtime data
 backend/.data/
 
@@ -31,4 +36,3 @@ htmlcov/
 .idea/
 .vscode/
 .DS_Store
-
