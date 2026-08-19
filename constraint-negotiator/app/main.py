@@ -8,6 +8,9 @@ from fastapi.middleware.cors import (
     CORSMiddleware,
 )
 
+from app.api.checkout import (
+    router as checkout_router,
+)
 from app.api.routes import (
     router as negotiator_router,
 )
@@ -74,6 +77,10 @@ app.add_middleware(
 
 app.include_router(
     negotiator_router
+)
+
+app.include_router(
+    checkout_router
 )
 
 app.include_router(
