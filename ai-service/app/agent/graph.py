@@ -14,8 +14,8 @@ from app.domain.travel import AgentTurn, TravelPlan
 from app.integrations.constraint_negotiator.client import get_constraint_negotiator_client
 
 
-def build_travel_workflow(planner: Any, executor: Any) -> Any:
-    nodes = TravelWorkflowNodes(planner, executor)
+def build_travel_workflow(planner: Any, executor: Any, search_client: Any | None = None) -> Any:
+    nodes = TravelWorkflowNodes(planner, executor, search_client)
     graph = StateGraph(TravelWorkflowState)
     graph.add_node("planner", nodes.plan)
     graph.add_node("executor", nodes.execute)
@@ -43,4 +43,4 @@ def get_agent() -> Any:
         system_prompt=f"{EXECUTOR_PROMPT}\n\n{settings.agent_system_prompt}",
         response_format=AgentTurn,
     )
-    return build_travel_workflow(planner, executor)
+    return build_travel_workflow(planner, executor, negotiator)

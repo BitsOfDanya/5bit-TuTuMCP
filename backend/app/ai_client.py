@@ -36,6 +36,14 @@ class AIDocumentResult(BaseModel):
     manual_review_required: bool
 
 
+class AIBookingAssistResult(BaseModel):
+    assistant_message: str
+    proposed_data: dict[str, object] = Field(default_factory=dict)
+    missing_fields: list[str] = Field(default_factory=list)
+    can_apply: bool = False
+    requires_user_confirmation: bool = True
+
+
 class AIServiceError(RuntimeError):
     pass
 
@@ -89,6 +97,14 @@ class AIServiceClient:
             files={"document": (filename, content, media_type)},
         )
         return AIDocumentResult.model_validate(response.json())
+
+    async def assist_booking(self, payload: dict[str, object]) -> AIBookingAssistResult:
+        response = await self._request(
+            "POST",
+            "/api/v1/ai/booking/assist",
+            json=payload,
+        )
+        return AIBookingAssistResult.model_validate(response.json())
 
     async def _request(self, method: str, path: str, **kwargs: object) -> httpx.Response:
         try:

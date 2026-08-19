@@ -1,6 +1,35 @@
 from app.agent.search_options import build_search_options
 
 
+def test_accepts_direct_hotel_product_options() -> None:
+    options = build_search_options(
+        {
+            "status": "success",
+            "options": [
+                {
+                    "id": "hotel-1",
+                    "kind": "journey",
+                    "title": "Отель у Кремля",
+                    "total_price": 8000,
+                    "currency": "RUB",
+                    "hotel": {
+                        "name": "Отель у Кремля",
+                        "price": 8000,
+                        "currency": "RUB",
+                        "nights": 2,
+                    },
+                    "action_url": "https://hotel.tutu.ru/offers/details?id=1",
+                }
+            ],
+        },
+        None,
+    )
+
+    assert options[0].outbound is None
+    assert options[0].hotel is not None
+    assert options[0].hotel.nights == 2
+
+
 def test_builds_clickable_card_data_from_mcp_journey() -> None:
     options = build_search_options(
         {

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -5,6 +6,7 @@ import { axe } from "vitest-axe";
 import { beforeEach, expect, test } from "vitest";
 
 import { server } from "../test/server";
+import type { Booking } from "../api/booking";
 import type { User } from "../types";
 import { ChatWidget } from "./ChatWidget";
 
@@ -14,11 +16,23 @@ const authenticatedUser: User = {
   display_name: "Traveller",
 };
 
-beforeEach(() => window.localStorage.clear());
+beforeEach(() => {
+  window.localStorage.clear();
+  window.history.replaceState({}, "", "/");
+});
+
+function renderChat() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ChatWidget user={authenticatedUser} />
+    </QueryClientProvider>,
+  );
+}
 
 test("opens the chat and restores focus after Escape", async () => {
   const user = userEvent.setup();
-  render(<ChatWidget user={authenticatedUser} />);
+  renderChat();
 
   const launcher = screen.getByRole("button", { name: "Открыть чат с Джарвеллом" });
   await user.click(launcher);
@@ -56,7 +70,7 @@ test("renders Markdown responses and continues the backend session", async () =>
     }),
   );
 
-  render(<ChatWidget user={authenticatedUser} />);
+  renderChat();
   await user.click(screen.getByRole("button", { name: "Открыть чат с Джарвеллом" }));
 
   const composer = screen.getByLabelText("Сообщение Джарвеллу");
@@ -84,6 +98,49 @@ test("renders Markdown responses and continues the backend session", async () =>
 
 test("renders MCP search results as clickable inline cards", async () => {
   const user = userEvent.setup();
+  const booking: Booking = {
+    id: "44444444-4444-4444-8444-444444444444",
+    user_id: authenticatedUser.id,
+    session_id: "33333333-3333-4333-8333-333333333333",
+    product_type: "train",
+    option: {
+      id: "journey-1",
+      kind: "journey",
+      title: "Москва — Казань",
+      explanation: null,
+      total_price: 18_900,
+      currency: "RUB",
+      outbound: {
+        mode: "train",
+        origin: "Москва",
+        destination: "Казань",
+        departure: "2026-09-01T10:00:00+03:00",
+        arrival: "2026-09-01T21:30:00+03:00",
+        price: 9_500,
+        currency: "RUB",
+        duration_minutes: 690,
+        transfers: 0,
+        carrier: "ФПК",
+        voyage_no: "002Э",
+      },
+      inbound: null,
+      hotel: null,
+      changes: [],
+      action_url: "https://www.tutu.ru/poezda/view_d.php?np=002E",
+    },
+    steps: ["select_carriage", "select_seats", "confirm_fare", "passengers", "confirm", "checkout"],
+    current_step: "select_carriage",
+    completed_steps: [],
+    selections: {},
+    travelers_count: 1,
+    current_options: [
+      { id: "platzkart", title: "Плацкарт", description: "27 мест", price_delta: 0, available: true },
+      { id: "coupe", title: "Купе", description: "119 мест", price_delta: 1_594, available: true },
+    ],
+    checkout_url: null,
+    inventory_source: "preview",
+    provider_notice: "Наличие и цена подтверждаются на Туту.",
+  };
   server.use(
     http.post("/api/v1/agent/chat", () =>
       HttpResponse.json({
@@ -138,31 +195,34 @@ test("renders MCP search results as clickable inline cards", async () => {
         ],
       }),
     ),
+    http.post("/api/v1/bookings", () => HttpResponse.json(booking)),
   );
 
-  render(<ChatWidget user={authenticatedUser} />);
+  renderChat();
   await user.click(screen.getByRole("button", { name: "Открыть чат с Джарвеллом" }));
   await user.type(screen.getByLabelText("Сообщение Джарвеллу"), "Покажи варианты");
   await user.click(screen.getByRole("button", { name: "Отправить сообщение" }));
 
-  const card = await screen.findByRole("link", {
-    name: /открыть вариант: Москва — Казань/i,
+  const card = await screen.findByRole("button", {
+    name: /выбрать вариант: Москва — Казань/i,
   });
-  expect(card).toHaveAttribute(
-    "href",
-    "https://www.tutu.ru/poezda/view_d.php?np=002E",
-  );
-  expect(card).toHaveAttribute("target", "_blank");
   expect(within(card).getByText("18 900 ₽")).toBeInTheDocument();
   expect(card).toHaveTextContent("10:00");
   expect(card).toHaveTextContent("21:30");
   expect(within(card).getAllByText("Без пересадок")).toHaveLength(2);
   expect(screen.queryByText("Перейти к вариантам")).not.toBeInTheDocument();
+
+  await user.click(card);
+
+  expect(await screen.findByRole("heading", { name: "Выберите вагон" })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Оформление поездки в чате" })).toBeInTheDocument();
+  expect(screen.getByText(/шаг 1 из 6/i)).toBeInTheDocument();
+  expect(window.location.pathname).toBe("/");
 });
 
 test("chat dialog has no automated accessibility violations", async () => {
   const user = userEvent.setup();
-  const { container } = render(<ChatWidget user={authenticatedUser} />);
+  const { container } = renderChat();
 
   await user.click(screen.getByRole("button", { name: "Открыть чат с Джарвеллом" }));
   await screen.findByText(/ваш помощник по путешествиям/i);

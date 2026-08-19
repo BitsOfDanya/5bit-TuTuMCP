@@ -194,13 +194,10 @@ async def extract_passenger_document(
         conversation, _ = stored
         trip = TripDetails.model_validate(conversation.trip)
 
-    if trip.service_type is not TravelService.FLIGHT or trip.is_international is not True:
+    if trip.service_type is not TravelService.FLIGHT:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "Document extraction is available only for a confirmed international "
-                "flight session."
-            ),
+            detail="Document extraction is available only for a flight session.",
         )
 
     max_size = get_database_settings().max_document_size_bytes

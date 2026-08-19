@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -124,3 +124,32 @@ class PublicNegotiationResult(BaseModel):
     ] = Field(
         default_factory=list
     )
+
+
+class ProductSearchRequest(BaseModel):
+    service_type: Literal["train", "flight", "bus", "hotel"]
+    destination: str = Field(min_length=2)
+    start_date: date
+    travelers: int = Field(default=1, ge=1, le=9)
+    origin: str | None = Field(default=None, min_length=2)
+    end_date: date | None = None
+    preferred_time: time | None = None
+    budget: int | None = Field(default=None, gt=0)
+
+
+class PublicProductSearchOption(BaseModel):
+    id: str
+    kind: Literal["journey"] = "journey"
+    title: str
+    total_price: int = Field(ge=0)
+    currency: str = "RUB"
+    outbound: PublicTransportSegment | None = None
+    inbound: PublicTransportSegment | None = None
+    hotel: PublicHotelOption | None = None
+    changes: list[str] = Field(default_factory=list)
+    action_url: str | None = None
+
+
+class PublicProductSearchResult(BaseModel):
+    status: Literal["success", "no_options", "unavailable"]
+    options: list[PublicProductSearchOption] = Field(default_factory=list)

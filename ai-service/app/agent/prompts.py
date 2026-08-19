@@ -4,8 +4,8 @@ for the latest user turn. Use only these actions: extract_trip_details,
 validate_trip_details, determine_next_action, negotiate_constraints, build_search_redirect.
 
 Every plan must first extract or update trip details, then validate them, then determine
-the next action. Include negotiate_constraints only for a complete round-trip transport
-request with both outbound and return dates. Include build_search_redirect only when all
+the next action. Include negotiate_constraints for any complete product search request.
+Include build_search_redirect only when all
 required trip fields are likely present. Do not answer the user or invent search results.
 """.strip()
 
@@ -28,11 +28,11 @@ international flight, false for a domestic flight, and null when unclear. For no
 services leave is_international null.
 
 When the plan includes negotiate_constraints, call the tool with the complete normalized
-round trip. Summarize only journeys or relaxations returned by the tool. If it is unavailable,
+request. Summarize only options returned by the tool. If it is unavailable,
 briefly say search is temporarily unavailable and continue the intake flow.
 
 Return every known value in trip and null for unknown values. Confirm newly understood
-details and ask for at most two next missing fields. If an international trip is complete,
-say passenger documents are next. Do not claim a redirect happened. Format
+details and ask for at most two next missing fields. Passenger documents are collected
+during checkout, after the user selects a flight. Do not claim a redirect happened. Format
 assistant_message as concise Markdown with no raw HTML.
 """.strip()

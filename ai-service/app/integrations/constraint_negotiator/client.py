@@ -16,41 +16,30 @@ class ConstraintNegotiatorClient:
         self._timeout = timeout_seconds
 
     async def negotiate(self, trip: TripDetails) -> dict[str, Any]:
-        if trip.service_type is TravelService.HOTEL:
-            return {"status": "skipped", "reason": "Hotel-only trips are not supported."}
-        if not all(
-            [
-                trip.origin,
-                trip.destination,
-                trip.start_date,
-                trip.end_date,
-                trip.passengers,
-            ]
-        ):
+        if not all([trip.service_type, trip.destination, trip.start_date, trip.passengers]):
             return {
                 "status": "skipped",
-                "reason": "A complete round trip is required for constraint negotiation.",
+                "reason": "Complete product search fields are required.",
             }
+        if trip.service_type is not TravelService.HOTEL and not trip.origin:
+            return {"status": "skipped", "reason": "Origin is required for transport search."}
+        if trip.service_type is TravelService.HOTEL and not trip.end_date:
+            return {"status": "skipped", "reason": "Check-out date is required for hotel search."}
 
-        preferred_transport = [trip.service_type.value] if trip.service_type else []
         payload = {
-            "trip": {
-                "origin": trip.origin,
-                "destination": trip.destination,
-                "outbound_date": trip.start_date.isoformat(),
-                "return_date": trip.end_date.isoformat(),
-                "outbound_after": (
-                    trip.preferred_time.isoformat() if trip.preferred_time else None
-                ),
-                "travelers": trip.passengers,
-                "budget": trip.budget,
-                "preferred_transport": preferred_transport,
-            }
+            "service_type": trip.service_type.value,
+            "origin": trip.origin,
+            "destination": trip.destination,
+            "start_date": trip.start_date.isoformat(),
+            "end_date": trip.end_date.isoformat() if trip.end_date else None,
+            "preferred_time": trip.preferred_time.isoformat() if trip.preferred_time else None,
+            "travelers": trip.passengers,
+            "budget": trip.budget,
         }
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.post(
-                    f"{self._base_url}/api/v1/negotiator/from-spec/public",
+                    f"{self._base_url}/api/v1/negotiator/products/search",
                     json=payload,
                 )
                 response.raise_for_status()
@@ -60,8 +49,7 @@ class ConstraintNegotiatorClient:
                 "reason": "Constraint negotiator is temporarily unavailable.",
                 "error_type": type(exc).__name__,
             }
-        payload = response.json()
-        return compact_negotiation_result(payload)
+        return response.json()
 
     async def health(self) -> dict[str, str]:
         try:

@@ -15,9 +15,11 @@ import type { SearchOption, SearchSegment } from "../api/chat";
 
 interface TravelOptionCardsProps {
   options: SearchOption[];
+  onSelect?: (option: SearchOption) => void;
+  selectingId?: string | null;
 }
 
-export function TravelOptionCards({ options }: TravelOptionCardsProps) {
+export function TravelOptionCards({ options, onSelect, selectingId }: TravelOptionCardsProps) {
   if (!options.length) {
     return null;
   }
@@ -25,13 +27,26 @@ export function TravelOptionCards({ options }: TravelOptionCardsProps) {
   return (
     <div className="travel-options" aria-label="Найденные варианты">
       {options.map((option) => (
-        <TravelOptionCard key={`${option.kind}-${option.id}`} option={option} />
+        <TravelOptionCard
+          key={`${option.kind}-${option.id}`}
+          option={option}
+          onSelect={onSelect}
+          isSelecting={selectingId === option.id}
+        />
       ))}
     </div>
   );
 }
 
-function TravelOptionCard({ option }: { option: SearchOption }) {
+function TravelOptionCard({
+  option,
+  onSelect,
+  isSelecting,
+}: {
+  option: SearchOption;
+  onSelect?: (option: SearchOption) => void;
+  isSelecting: boolean;
+}) {
   const href = safeActionUrl(option.action_url);
   const content = (
     <>
@@ -52,8 +67,8 @@ function TravelOptionCard({ option }: { option: SearchOption }) {
       {option.explanation ? <p className="travel-option-explanation">{option.explanation}</p> : null}
 
       <div className="travel-option-segments">
-        <SegmentRow label="Туда" segment={option.outbound} />
-        <SegmentRow label="Обратно" segment={option.inbound} />
+        {option.outbound ? <SegmentRow label="Туда" segment={option.outbound} /> : null}
+        {option.inbound ? <SegmentRow label="Обратно" segment={option.inbound} /> : null}
       </div>
 
       {option.hotel ? (
@@ -75,11 +90,33 @@ function TravelOptionCard({ option }: { option: SearchOption }) {
       ) : null}
 
       <div className="travel-option-action">
-        <span>{href ? "Посмотреть на Туту" : "Ссылка пока недоступна"}</span>
+        <span>
+          {isSelecting
+            ? "Открываю оформление…"
+            : onSelect
+              ? "Выбрать и оформить"
+              : href
+                ? "Посмотреть на Туту"
+                : "Ссылка пока недоступна"}
+        </span>
         {href ? <ExternalLink size={14} aria-hidden="true" /> : null}
       </div>
     </>
   );
+
+  if (onSelect) {
+    return (
+      <button
+        className="travel-option-card"
+        type="button"
+        disabled={isSelecting}
+        onClick={() => onSelect(option)}
+        aria-label={`Выбрать вариант: ${option.title}, ${formatMoney(option.total_price, option.currency)}`}
+      >
+        {content}
+      </button>
+    );
+  }
 
   if (!href) {
     return <article className="travel-option-card travel-option-card-disabled">{content}</article>;

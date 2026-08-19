@@ -11,11 +11,16 @@ import {
 
 import { sendChatMessage } from "../api/chat";
 import type { SearchOption } from "../api/chat";
+import { createBooking } from "../api/booking";
+import type { Booking } from "../api/booking";
 import type { User } from "../types";
 import { TravelOptionCards } from "./TravelOptionCards";
 
 const ChatMarkdown = lazy(() =>
   import("./ChatMarkdown").then((module) => ({ default: module.ChatMarkdown })),
+);
+const InlineBookingFlow = lazy(() =>
+  import("./InlineBookingFlow").then((module) => ({ default: module.InlineBookingFlow })),
 );
 
 const GUEST_USER_KEY = "tutumcp.chat.guest-user-id.v1";
@@ -51,6 +56,8 @@ export function ChatWidget({ user }: ChatWidgetProps) {
   const [isSending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [failedMessage, setFailedMessage] = useState("");
+  const [selectingOptionId, setSelectingOptionId] = useState<string | null>(null);
+  const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [guestUserId] = useState(getOrCreateGuestUserId);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -83,7 +90,7 @@ export function ChatWidget({ user }: ChatWidgetProps) {
       }
 
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), a[href], textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
       const first = focusable.item(0);
       const last = focusable.item(focusable.length - 1);
@@ -108,7 +115,7 @@ export function ChatWidget({ user }: ChatWidgetProps) {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
     }
-  }, [isOpen, isSending, messages]);
+  }, [activeBooking, isOpen, isSending, messages]);
 
   function openChat() {
     setOpen(true);
@@ -187,6 +194,30 @@ export function ChatWidget({ user }: ChatWidgetProps) {
     }
   }
 
+  async function handleOptionSelect(option: SearchOption) {
+    if (!sessionId || selectingOptionId) {
+      return;
+    }
+    setSelectingOptionId(option.id);
+    setError("");
+    try {
+      const booking = await createBooking({
+        user_id: userId,
+        session_id: sessionId,
+        option,
+      });
+      setActiveBooking(booking);
+    } catch (bookingError) {
+      setError(
+        bookingError instanceof Error
+          ? bookingError.message
+          : "Не удалось начать оформление.",
+      );
+    } finally {
+      setSelectingOptionId(null);
+    }
+  }
+
   return (
     <>
       <button
@@ -222,7 +253,7 @@ export function ChatWidget({ user }: ChatWidgetProps) {
           <section
             ref={dialogRef}
             id="jarvell-chat-dialog"
-            className="chat-dialog"
+            className={`chat-dialog${activeBooking ? " chat-dialog-booking" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="jarvell-chat-title"
@@ -259,7 +290,11 @@ export function ChatWidget({ user }: ChatWidgetProps) {
                     <Suspense fallback={<span>Загружаю сообщение…</span>}>
                       <ChatMarkdown content={message.content} />
                     </Suspense>
-                    <TravelOptionCards options={message.options ?? []} />
+                    <TravelOptionCards
+                      options={message.options ?? []}
+                      onSelect={handleOptionSelect}
+                      selectingId={selectingOptionId}
+                    />
                     {message.redirectUrl && !message.options?.length ? (
                       <a className="chat-redirect" href={message.redirectUrl}>
                         Перейти к вариантам
@@ -291,6 +326,12 @@ export function ChatWidget({ user }: ChatWidgetProps) {
                   <span />
                   <span />
                 </div>
+              ) : null}
+
+              {activeBooking ? (
+                <Suspense fallback={<div className="chat-booking-loading" role="status">Открываю оформление…</div>}>
+                  <InlineBookingFlow key={activeBooking.id} initialBooking={activeBooking} />
+                </Suspense>
               ) : null}
 
               {error ? (

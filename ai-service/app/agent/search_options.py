@@ -17,6 +17,18 @@ def build_search_options(
     if not negotiation:
         return []
 
+    direct_options = negotiation.get("options")
+    if isinstance(direct_options, list):
+        options: list[SearchOption] = []
+        for item in direct_options[:3]:
+            if not isinstance(item, dict):
+                continue
+            try:
+                options.append(SearchOption.model_validate(item))
+            except ValidationError:
+                continue
+        return options
+
     default_title = _trip_title(negotiation.get("trip_spec"))
     options = [
         option

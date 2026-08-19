@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.ai_client import (
+    AIBookingAssistResult,
     AIChatResult,
     AIDocumentResult,
     get_ai_service_client,
@@ -166,6 +167,15 @@ class FakeAIServiceClient:
             manual_review_required=bool(missing or document.warnings),
         )
 
+    async def assist_booking(self, payload: dict[str, object]) -> AIBookingAssistResult:
+        options = payload.get("current_options", [])
+        option_id = options[0]["id"] if isinstance(options, list) and options else None
+        return AIBookingAssistResult(
+            assistant_message="Рекомендую первый доступный вариант.",
+            proposed_data={"option_id": option_id},
+            can_apply=option_id is not None,
+        )
+
 
 @pytest.fixture
 def client() -> TestClient:
@@ -245,7 +255,7 @@ def test_conversation_is_isolated_by_user(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-def test_international_flight_routes_to_document_extraction(client: TestClient) -> None:
+def test_international_flight_searches_before_document_extraction(client: TestClient) -> None:
     chat = client.post(
         "/api/v1/agent/chat",
         json={
@@ -254,7 +264,7 @@ def test_international_flight_routes_to_document_extraction(client: TestClient) 
         },
     )
     assert chat.status_code == 200
-    assert chat.json()["next_action"] == "upload_passenger_documents"
+    assert chat.json()["next_action"] == "redirect_to_search"
     session_id = chat.json()["session_id"]
 
     extraction = client.post(
@@ -275,3 +285,135 @@ def test_chat_rejects_empty_message(client: TestClient) -> None:
         json={"user_id": str(USER_ID), "message": ""},
     )
     assert response.status_code == 422
+
+
+def test_train_booking_flow_creates_checkout_only_after_confirmation(
+    client: TestClient,
+) -> None:
+    first = client.post(
+        "/api/v1/agent/chat",
+        json={"user_id": str(USER_ID), "message": "Нужен поезд из Москвы в Казань"},
+    ).json()
+    completed = client.post(
+        "/api/v1/agent/chat",
+        json={
+            "user_id": str(USER_ID),
+            "session_id": first["session_id"],
+            "message": "1 сентября в 10:30, двое пассажиров, бюджет 20 тысяч",
+        },
+    ).json()
+
+    created = client.post(
+        "/api/v1/bookings",
+        json={
+            "user_id": str(USER_ID),
+            "session_id": first["session_id"],
+            "option": completed["search_options"][0],
+        },
+    )
+    assert created.status_code == 200
+    booking = created.json()
+    booking_id = booking["id"]
+    assert booking["current_step"] == "select_carriage"
+    assert booking["checkout_url"] is None
+
+    steps = [
+        ("select_carriage", {"option_id": "compartment"}),
+        ("select_seats", {"seat_ids": ["1", "2"]}),
+        ("confirm_fare", {"accepted": True}),
+        (
+            "passengers",
+            {
+                "travelers": [
+                    {
+                        "full_name": "Иван Иванов",
+                        "birth_date": "1990-01-01",
+                        "document_number": "4510123456",
+                    },
+                    {
+                        "full_name": "Анна Иванова",
+                        "birth_date": "1992-02-02",
+                        "document_number": "4510654321",
+                    },
+                ]
+            },
+        ),
+        ("confirm", {"approved": True}),
+        ("checkout", {}),
+    ]
+    for step, data in steps:
+        response = client.post(
+            f"/api/v1/bookings/{booking_id}/steps",
+            json={"user_id": str(USER_ID), "step": step, "data": data},
+        )
+        assert response.status_code == 200, response.text
+        booking = response.json()
+
+    assert booking["current_step"] == "checkout"
+    assert booking["checkout_url"].startswith("https://www.tutu.ru/")
+
+
+def test_booking_rejects_out_of_order_step(client: TestClient) -> None:
+    first = client.post(
+        "/api/v1/agent/chat",
+        json={"user_id": str(OTHER_USER_ID), "message": "Нужен поезд из Москвы в Казань"},
+    ).json()
+    completed = client.post(
+        "/api/v1/agent/chat",
+        json={
+            "user_id": str(OTHER_USER_ID),
+            "session_id": first["session_id"],
+            "message": "1 сентября в 10:30, двое пассажиров, бюджет 20 тысяч",
+        },
+    ).json()
+    booking_id = client.post(
+        "/api/v1/bookings",
+        json={
+            "user_id": str(OTHER_USER_ID),
+            "session_id": first["session_id"],
+            "option": completed["search_options"][0],
+        },
+    ).json()["id"]
+
+    response = client.post(
+        f"/api/v1/bookings/{booking_id}/steps",
+        json={
+            "user_id": str(OTHER_USER_ID),
+            "step": "confirm",
+            "data": {"approved": True},
+        },
+    )
+
+    assert response.status_code == 409
+
+
+def test_booking_copilot_suggests_only_current_available_option(client: TestClient) -> None:
+    first = client.post(
+        "/api/v1/agent/chat",
+        json={"user_id": str(OTHER_USER_ID), "message": "Нужен поезд из Москвы в Казань"},
+    ).json()
+    completed = client.post(
+        "/api/v1/agent/chat",
+        json={
+            "user_id": str(OTHER_USER_ID),
+            "session_id": first["session_id"],
+            "message": "1 сентября в 10:30, двое пассажиров, бюджет 20 тысяч",
+        },
+    ).json()
+    booking = client.post(
+        "/api/v1/bookings",
+        json={
+            "user_id": str(OTHER_USER_ID),
+            "session_id": first["session_id"],
+            "option": completed["search_options"][0],
+        },
+    ).json()
+
+    response = client.post(
+        f"/api/v1/bookings/{booking['id']}/assist",
+        json={"user_id": str(OTHER_USER_ID), "instruction": "Выбери самый простой вариант"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["proposed_data"] == {"option_id": "seated"}
+    assert response.json()["requires_user_confirmation"] is True

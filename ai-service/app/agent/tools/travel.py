@@ -52,8 +52,6 @@ def validate_trip(trip: TripDetails) -> dict[str, Any]:
 def next_travel_action(trip: TripDetails) -> AgentNextAction:
     if missing_trip_fields(trip):
         return AgentNextAction.COLLECT_TRIP_DETAILS
-    if trip.service_type is TravelService.FLIGHT and trip.is_international is True:
-        return AgentNextAction.UPLOAD_PASSENGER_DOCUMENTS
     return AgentNextAction.REDIRECT_TO_SEARCH
 
 

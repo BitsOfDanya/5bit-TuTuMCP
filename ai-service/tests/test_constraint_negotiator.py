@@ -15,7 +15,7 @@ class FakeResponse:
         return None
 
     def json(self) -> dict[str, Any]:
-        return {"status": "success", "journeys": [{"id": "journey-1"}]}
+        return {"status": "success", "options": [{"id": "journey-1"}]}
 
 
 class FakeAsyncClient:
@@ -38,7 +38,7 @@ class FakeAsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_maps_complete_round_trip_to_constraint_negotiator(monkeypatch) -> None:
+async def test_maps_product_to_dedicated_search_endpoint(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.integrations.constraint_negotiator.client.httpx.AsyncClient",
         FakeAsyncClient,
@@ -57,23 +57,25 @@ async def test_maps_complete_round_trip_to_constraint_negotiator(monkeypatch) ->
         )
     )
     assert result["status"] == "success"
-    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/from-spec/public"
+    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/products/search"
     assert FakeAsyncClient.payload == {
-        "trip": {
-            "origin": "Москва",
-            "destination": "Казань",
-            "outbound_date": "2026-09-01",
-            "return_date": "2026-09-05",
-            "outbound_after": "10:30:00",
-            "travelers": 2,
-            "budget": 30_000,
-            "preferred_transport": ["train"],
-        }
+        "service_type": "train",
+        "origin": "Москва",
+        "destination": "Казань",
+        "start_date": "2026-09-01",
+        "end_date": "2026-09-05",
+        "preferred_time": "10:30:00",
+        "travelers": 2,
+        "budget": 30_000,
     }
 
 
 @pytest.mark.asyncio
-async def test_skips_incomplete_one_way_trip() -> None:
+async def test_searches_complete_one_way_trip(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.integrations.constraint_negotiator.client.httpx.AsyncClient",
+        FakeAsyncClient,
+    )
     client = ConstraintNegotiatorClient("http://negotiator:8010", 10)
     result = await client.negotiate(
         TripDetails(
@@ -84,7 +86,9 @@ async def test_skips_incomplete_one_way_trip() -> None:
             passengers=1,
         )
     )
-    assert result["status"] == "skipped"
+    assert result["status"] == "success"
+    assert FakeAsyncClient.payload["service_type"] == "bus"
+    assert FakeAsyncClient.payload["end_date"] is None
 
 
 def test_compacts_large_tutu_references_before_returning_to_agent() -> None:
