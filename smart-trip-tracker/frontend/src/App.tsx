@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Hotel, Plane, RefreshCw, Sparkles, TrendingDown, XCircle } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Hotel, Plane, RefreshCw, TrendingDown, XCircle } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 import {
@@ -52,12 +52,13 @@ export function App() {
     mutationFn: stopTracking,
     onSuccess: saveTracking,
   });
-  const error =
+  const searchError =
     createMutation.error ??
+    trackingsQuery.error;
+  const actionError =
     simulateMutation.error ??
     refreshMutation.error ??
-    stopMutation.error ??
-    trackingsQuery.error;
+    stopMutation.error;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -174,9 +175,9 @@ export function App() {
               {createMutation.isPending ? "Ищем комбинации…" : "Следить за поездкой"}
             </button>
           </form>
-          {error ? (
+          {searchError ? (
             <p className="error" role="alert">
-              {error instanceof Error ? error.message : "Произошла ошибка."}
+              {searchError instanceof Error ? searchError.message : "Произошла ошибка."}
             </p>
           ) : null}
         </section>
@@ -200,15 +201,6 @@ export function App() {
                   <RefreshCw size={17} aria-hidden="true" />
                   Обновить
                 </button>
-                <button
-                  className="simulate-button"
-                  disabled={!tracking.active || simulateMutation.isPending}
-                  type="button"
-                  onClick={() => simulateMutation.mutate(tracking.id)}
-                >
-                  <Sparkles size={17} aria-hidden="true" />
-                  Добавить demo-точку
-                </button>
                 {tracking.active ? (
                   <button
                     className="stop-button"
@@ -224,6 +216,11 @@ export function App() {
                 )}
               </div>
             </div>
+            {actionError ? (
+              <p className="error" role="alert">
+                {actionError instanceof Error ? actionError.message : "Произошла ошибка."}
+              </p>
+            ) : null}
 
             <div className="metrics">
               <Metric label="Сейчас" value={money(tracking.summary.current_price)} />
@@ -242,6 +239,42 @@ export function App() {
                 <p>{tracking.recommendation.message}</p>
               </div>
             </article>
+
+
+            <section className="scenario-panel" aria-labelledby="scenario-title">
+              <div>
+                <p className="step-label">Тестовый стенд</p>
+                <h3 id="scenario-title">Проверить динамику и негативный сценарий</h3>
+                <p>
+                  Эти кнопки не вызывают MCP: они добавляют контролируемую точку
+                  относительно последней цены.
+                </p>
+              </div>
+              <div className="scenario-actions">
+                <button
+                  className="scenario-drop"
+                  disabled={!tracking.active || simulateMutation.isPending}
+                  type="button"
+                  onClick={() =>
+                    simulateMutation.mutate({ id: tracking.id, scenario: "drop" })
+                  }
+                >
+                  <ArrowDownRight size={18} aria-hidden="true" />
+                  Цена снизилась на 7%
+                </button>
+                <button
+                  className="scenario-spike"
+                  disabled={!tracking.active || simulateMutation.isPending}
+                  type="button"
+                  onClick={() =>
+                    simulateMutation.mutate({ id: tracking.id, scenario: "spike" })
+                  }
+                >
+                  <ArrowUpRight size={18} aria-hidden="true" />
+                  Цена выросла на 20%
+                </button>
+              </div>
+            </section>
 
             <div className="dashboard-grid">
               <article className="chart-card">
@@ -286,39 +319,109 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function PriceChart({ tracking }: { tracking: TripTracking }) {
   const width = 720;
-  const height = 230;
-  const padding = 28;
-  const prices = tracking.history.map((point) => point.total_price);
+  const height = 260;
+  const plot = { left: 72, right: 20, top: 24, bottom: 42 };
+  const history = tracking.history.slice(-10);
+  const prices = history.map((point) => point.total_price);
   const minimum = Math.min(...prices);
   const maximum = Math.max(...prices);
-  const range = Math.max(maximum - minimum, 1);
+  const margin = Math.max((maximum - minimum) * 0.15, maximum * 0.03, 1);
+  const floor = Math.max(0, minimum - margin);
+  const ceiling = maximum + margin;
+  const range = ceiling - floor;
   const x = (index: number) =>
-    tracking.history.length === 1
+    history.length === 1
       ? width / 2
-      : padding + (index * (width - padding * 2)) / (tracking.history.length - 1);
+      : plot.left +
+        (index * (width - plot.left - plot.right)) / (history.length - 1);
   const y = (price: number) =>
-    height - padding - ((price - minimum) / range) * (height - padding * 2);
-  const points = tracking.history
+    height -
+    plot.bottom -
+    ((price - floor) / range) * (height - plot.top - plot.bottom);
+  const points = history
     .map((point, index) => `${x(index)},${y(point.total_price)}`)
     .join(" ");
+  const guides = [ceiling, (ceiling + floor) / 2, floor];
+  const latest = history.at(-1)!;
+  const latestIndex = history.length - 1;
 
   return (
-    <svg
-      className="price-chart"
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label="График изменения общей стоимости поездки"
-    >
-      <line x1={padding} x2={width - padding} y1={y(minimum)} y2={y(minimum)} />
-      <polyline points={points} />
-      {tracking.history.map((point, index) => (
-        <circle key={point.timestamp} cx={x(index)} cy={y(point.total_price)} r="6">
-          <title>
-            {new Date(point.timestamp).toLocaleString("ru-RU")}: {money(point.total_price)}
-          </title>
-        </circle>
-      ))}
-    </svg>
+    <>
+      <svg
+        className="price-chart"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="График изменения общей стоимости поездки"
+      >
+        {guides.map((price) => (
+          <g key={price}>
+            <line
+              x1={plot.left}
+              x2={width - plot.right}
+              y1={y(price)}
+              y2={y(price)}
+            />
+            <text className="axis-label" x={plot.left - 10} y={y(price) + 4}>
+              {shortMoney(price)}
+            </text>
+          </g>
+        ))}
+        <polyline points={points} />
+        {history.map((point, index) => (
+          <circle
+            key={`${point.timestamp}-${index}`}
+            cx={x(index)}
+            cy={y(point.total_price)}
+            r="6"
+          >
+            <title>
+              {dateTime(point.timestamp)}: {money(point.total_price)}
+            </title>
+          </circle>
+        ))}
+        <text
+          className="point-value"
+          x={x(latestIndex)}
+          y={Math.max(y(latest.total_price) - 13, 14)}
+        >
+          {money(latest.total_price)}
+        </text>
+        <text className="time-label" x={x(0)} y={height - 10}>
+          {shortTime(history[0].timestamp)}
+        </text>
+        {history.length > 1 ? (
+          <text
+            className="time-label"
+            textAnchor="end"
+            x={x(latestIndex)}
+            y={height - 10}
+          >
+            {shortTime(latest.timestamp)}
+          </text>
+        ) : null}
+      </svg>
+
+      <ol className="price-history" aria-label="История изменения цены">
+        {history.map((point, index) => {
+          const previous = history[index - 1];
+          const delta = previous ? point.total_price - previous.total_price : null;
+          const direction = delta === null || delta === 0 ? "same" : delta > 0 ? "up" : "down";
+          return (
+            <li key={`history-${point.timestamp}-${index}`}>
+              <time dateTime={point.timestamp}>{dateTime(point.timestamp)}</time>
+              <strong>{money(point.total_price)}</strong>
+              <span className={`price-delta ${direction}`}>
+                {delta === null
+                  ? "Первая точка"
+                  : delta === 0
+                    ? "Без изменений"
+                    : `${delta > 0 ? "+" : ""}${money(delta)}`}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </>
   );
 }
 
@@ -343,10 +446,40 @@ function isoDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+const moneyFormatter = new Intl.NumberFormat("ru-RU", {
+  style: "currency",
+  currency: "RUB",
+  maximumFractionDigits: 0,
+});
+const compactMoneyFormatter = new Intl.NumberFormat("ru-RU", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+const dateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const shortTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 function money(value: number): string {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return moneyFormatter.format(value);
+}
+
+function shortMoney(value: number): string {
+  return `${compactMoneyFormatter.format(Math.round(value))} ₽`;
+}
+
+function dateTime(value: string): string {
+  return dateTimeFormatter.format(new Date(value));
+}
+
+function shortTime(value: string): string {
+  return shortTimeFormatter.format(new Date(value));
 }

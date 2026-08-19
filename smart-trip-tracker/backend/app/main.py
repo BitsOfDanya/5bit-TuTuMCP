@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,6 +13,7 @@ from app.provider import DemoTripOfferProvider, TutuMcpError, TutuMcpProvider
 from app.repository import SQLiteTrackingRepository, TrackingNotFoundError
 from app.schemas import (
     HealthResponse,
+    SimulationScenario,
     TrackingListResponse,
     TripIntent,
     TripTrackingResponse,
@@ -84,8 +85,12 @@ def refresh_tracking(tracking_id: UUID, service: ServiceDep) -> TripTrackingResp
 
 
 @app.post("/api/v1/trips/{tracking_id}/simulate")
-def simulate_tracking(tracking_id: UUID, service: ServiceDep) -> TripTrackingResponse:
-    return _run(lambda: service.refresh(tracking_id, simulated=True))
+def simulate_tracking(
+    tracking_id: UUID,
+    service: ServiceDep,
+    scenario: Annotated[SimulationScenario, Query()] = SimulationScenario.DROP,
+) -> TripTrackingResponse:
+    return _run(lambda: service.simulate(tracking_id, scenario))
 
 
 @app.delete("/api/v1/trips/{tracking_id}")
