@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -9,7 +10,8 @@ class TripIntent(BaseModel):
     origin: str = Field(min_length=2, max_length=120)
     destination: str = Field(min_length=2, max_length=120)
     departure_date: date
-    return_date: date
+    return_date: date | None = None
+    transport_mode: Literal["train", "flight", "bus", "suburban_train"] = "flight"
     adults: int = Field(default=1, ge=1, le=6)
     budget: int | None = Field(default=None, ge=1)
     direct_only: bool = False
@@ -17,7 +19,7 @@ class TripIntent(BaseModel):
 
     @model_validator(mode="after")
     def validate_dates_and_route(self) -> "TripIntent":
-        if self.return_date < self.departure_date:
+        if self.return_date is not None and self.return_date < self.departure_date:
             raise ValueError("Return date cannot be before departure date.")
         if self.origin.strip().casefold() == self.destination.strip().casefold():
             raise ValueError("Origin and destination must be different.")
@@ -32,8 +34,8 @@ class TransportOffer(BaseModel):
     currency: str = "RUB"
     departure_at: datetime
     arrival_at: datetime
-    return_departure_at: datetime
-    return_arrival_at: datetime
+    return_departure_at: datetime | None = None
+    return_arrival_at: datetime | None = None
     duration_minutes: int = Field(ge=0)
     transfers: int = Field(ge=0)
     carriers: list[str] = Field(default_factory=list)

@@ -89,6 +89,23 @@ def test_plan_allows_negotiation_before_redirect() -> None:
     assert plan.steps[-2].action is PlanAction.NEGOTIATE_CONSTRAINTS
 
 
+def test_plan_allows_purchase_timing_analysis() -> None:
+    plan = TravelPlan(
+        objective="Определить подходящий момент для покупки.",
+        steps=[
+            PlanStep(action=PlanAction.EXTRACT_TRIP_DETAILS, reason="Сохранить маршрут."),
+            PlanStep(action=PlanAction.VALIDATE_TRIP_DETAILS, reason="Проверить данные."),
+            PlanStep(action=PlanAction.DETERMINE_NEXT_ACTION, reason="Выбрать этап."),
+            PlanStep(
+                action=PlanAction.ANALYZE_PURCHASE_TIMING,
+                reason="Проверить историю цены.",
+            ),
+        ],
+    )
+
+    assert plan.steps[-1].action is PlanAction.ANALYZE_PURCHASE_TIMING
+
+
 def test_tool_schema_is_strict_for_openai() -> None:
     schema = validate_trip_details.args_schema.model_json_schema()
     trip_schema = schema["$defs"]["ToolTripDetails"]

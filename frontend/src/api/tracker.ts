@@ -18,7 +18,7 @@ export interface TripTracking {
     origin: string;
     destination: string;
     departure_date: string;
-    return_date: string;
+    return_date: string | null;
     adults: number;
     budget: number | null;
     direct_only: boolean;
@@ -51,8 +51,8 @@ export interface TripTracking {
       currency: string;
       departure_at: string;
       arrival_at: string;
-      return_departure_at: string;
-      return_arrival_at: string;
+      return_departure_at: string | null;
+      return_arrival_at: string | null;
       duration_minutes: number;
       transfers: number;
       carriers: string[];

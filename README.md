@@ -14,6 +14,8 @@
 - история чатов хранится по пользователям в SQLite и управляется через Alembic;
 - LangGraph-агент вынесен в отдельный stateless `ai-service`;
 - `constraint-negotiator` подключён к агенту как инструмент поиска и ослабления ограничений;
+- `smart-trip-tracker` подключён к агенту как `analyze_purchase_timing`: Джарвелл
+  отвечает на вопросы о моменте покупки по реальной истории цены;
 - найденный Jarvell вариант можно передать в Smart Trip Tracker и отслеживать прямо во frontend;
 - международные документы распознаются из PNG, JPEG и PDF;
 - компонентные, accessibility и FastAPI-тесты.
@@ -24,6 +26,7 @@
 frontend -> backend :8000 -> ai-service :8020 -> OpenAI
               |                   |
               |                   +-> constraint-negotiator :8010 -> Tutu MCP
+              |                   +-> smart-trip-tracker :8001
               +-> smart-trip-tracker :8001 -> Tutu MCP
 ```
 
@@ -67,6 +70,10 @@ make smoke
 `make smoke` отправляет полный маршрут через Vite proxy и публичный backend API, проверяет
 сохранение истории, OpenAI-агента и инструмент `constraint-negotiator`. Вызов использует
 OpenAI API и внешний Tutu MCP.
+
+После выдачи билетов можно спросить Джарвелла «Когда лучше покупать?». Агент вызовет
+`analyze_purchase_timing`, переиспользует подходящее активное отслеживание либо создаст
+его из найденного билета и ответит по рекомендации Smart Trip Tracker.
 
 ### Ручной запуск
 

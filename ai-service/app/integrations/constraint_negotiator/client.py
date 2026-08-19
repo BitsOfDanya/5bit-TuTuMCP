@@ -26,7 +26,7 @@ class ConstraintNegotiatorClient:
         if trip.service_type is TravelService.HOTEL and not trip.end_date:
             return {"status": "skipped", "reason": "Check-out date is required for hotel search."}
 
-        payload = {
+        product_payload = {
             "service_type": trip.service_type.value,
             "origin": trip.origin,
             "destination": trip.destination,
@@ -36,10 +36,33 @@ class ConstraintNegotiatorClient:
             "travelers": trip.passengers,
             "budget": trip.budget,
         }
+        is_round_trip = (
+            trip.service_type is not TravelService.HOTEL
+            and trip.end_date is not None
+            and trip.origin is not None
+        )
+        path = "/api/v1/negotiator/products/search"
+        payload: dict[str, Any] = product_payload
+        if is_round_trip:
+            path = "/api/v1/negotiator/from-spec/public"
+            payload = {
+                "trip": {
+                    "origin": trip.origin,
+                    "destination": trip.destination,
+                    "outbound_date": trip.start_date.isoformat(),
+                    "return_date": trip.end_date.isoformat(),
+                    "outbound_after": (
+                        trip.preferred_time.isoformat() if trip.preferred_time else None
+                    ),
+                    "travelers": trip.passengers,
+                    "budget": trip.budget,
+                    "preferred_transport": [trip.service_type.value],
+                }
+            }
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.post(
-                    f"{self._base_url}/api/v1/negotiator/products/search",
+                    f"{self._base_url}{path}",
                     json=payload,
                 )
                 response.raise_for_status()
@@ -49,7 +72,20 @@ class ConstraintNegotiatorClient:
                 "reason": "Constraint negotiator is temporarily unavailable.",
                 "error_type": type(exc).__name__,
             }
-        return response.json()
+        result = response.json()
+        if is_round_trip:
+            return compact_negotiation_result(result)
+        if isinstance(result, dict):
+            result["trip_spec"] = {
+                "origin": trip.origin,
+                "destination": trip.destination,
+                "outbound_date": trip.start_date.isoformat(),
+                "return_date": None,
+                "travelers": trip.passengers,
+                "budget": trip.budget,
+                "max_transfers": None,
+            }
+        return result
 
     async def health(self) -> dict[str, str]:
         try:

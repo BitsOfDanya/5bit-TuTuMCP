@@ -13,7 +13,7 @@ from app.agent.tools.travel import (
     merge_trip_details,
     validate_trip_details,
 )
-from app.domain.travel import AgentTurn, TravelPlan, TripDetails
+from app.domain.travel import AgentTurn, PlanAction, TravelPlan, TripDetails
 
 
 class TravelWorkflowNodes:
@@ -77,7 +77,11 @@ class TravelWorkflowNodes:
             validate_trip_details.name,
             determine_next_action.name,
         ]
-        if next_action == "redirect_to_search":
+        is_purchase_analysis = any(
+            step.action is PlanAction.ANALYZE_PURCHASE_TIMING
+            for step in state["plan"].steps
+        )
+        if next_action == "redirect_to_search" and not is_purchase_analysis:
             redirect_url = build_search_redirect.invoke(tool_input)["redirect_url"]
             tools_used.append(build_search_redirect.name)
         constraint_result = state.get("constraint_result") or {}
@@ -85,6 +89,7 @@ class TravelWorkflowNodes:
             not validation["missing_fields"]
             and self._search_client is not None
             and not constraint_result.get("options")
+            and not is_purchase_analysis
         ):
             constraint_result = await self._search_client.negotiate(trip)
             tools_used.append("search_travel_options")

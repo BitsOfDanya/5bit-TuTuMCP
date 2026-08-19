@@ -30,6 +30,51 @@ def test_accepts_direct_hotel_product_options() -> None:
     assert options[0].hotel.nights == 2
 
 
+def test_builds_tracking_payload_for_direct_transport_option() -> None:
+    options = build_search_options(
+        {
+            "status": "success",
+            "trip_spec": {
+                "origin": "Санкт-Петербург",
+                "destination": "Москва",
+                "outbound_date": "2026-09-10",
+                "return_date": None,
+                "travelers": 1,
+                "budget": 30_000,
+                "max_transfers": None,
+            },
+            "options": [
+                {
+                    "id": "train-745y",
+                    "kind": "journey",
+                    "title": "Санкт-Петербург — Москва",
+                    "total_price": 1141,
+                    "currency": "RUB",
+                    "outbound": {
+                        "mode": "train",
+                        "origin": "Санкт-Петербург",
+                        "destination": "Москва",
+                        "departure": "2026-09-10T16:07:00+03:00",
+                        "arrival": "2026-09-10T22:58:00+03:00",
+                        "price": 1141,
+                        "duration_minutes": 411,
+                        "transfers": 0,
+                        "carrier": "ФПК",
+                    },
+                    "action_url": "https://www.tutu.ru/poezda/",
+                }
+            ],
+        },
+        None,
+    )
+
+    payload = options[0].tracking_payload
+    assert payload is not None
+    assert payload.trip_spec.return_date is None
+    assert payload.journeys[0].inbound is None
+    assert payload.journeys[0].outbound.mode == "train"
+
+
 def test_builds_clickable_card_data_from_mcp_journey() -> None:
     options = build_search_options(
         {

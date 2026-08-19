@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     trip_provider: Literal["demo", "tutu"] = "tutu"
     tutu_mcp_url: str = "https://mcp.tutu.ru/mcp"
+    constraint_negotiator_url: str = "http://127.0.0.1:8010"
     database_path: Path = Path(".data/smart-trip-tracker.db")
 
 
@@ -42,7 +43,10 @@ def get_settings() -> Settings:
 def get_service() -> TripTrackingService:
     settings = get_settings()
     provider = (
-        TutuMcpProvider(settings.tutu_mcp_url)
+        TutuMcpProvider(
+            settings.tutu_mcp_url,
+            constraint_endpoint=settings.constraint_negotiator_url,
+        )
         if settings.trip_provider == "tutu"
         else DemoTripOfferProvider()
     )

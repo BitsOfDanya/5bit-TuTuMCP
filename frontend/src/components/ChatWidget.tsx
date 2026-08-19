@@ -10,8 +10,11 @@ import {
 } from "react";
 
 import { sendChatMessage } from "../api/chat";
-import type { SearchOption } from "../api/chat";
+import type { SearchOption, TrackingPayload } from "../api/chat";
+import { createTracking, refreshTracking, stopTracking } from "../api/tracker";
+import type { TripTracking } from "../api/tracker";
 import type { User } from "../types";
+import { SmartTripTrackerWidget } from "./SmartTripTrackerWidget";
 import { TravelOptionCards } from "./TravelOptionCards";
 
 const ChatMarkdown = lazy(() =>
@@ -51,6 +54,12 @@ export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
   const [isSending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [failedMessage, setFailedMessage] = useState("");
+  const [trackerOption, setTrackerOption] = useState<SearchOption | null>(null);
+  const [tracking, setTracking] = useState<TripTracking | null>(null);
+  const [trackerError, setTrackerError] = useState("");
+  const [isCreatingTracking, setCreatingTracking] = useState(false);
+  const [isRefreshingTracking, setRefreshingTracking] = useState(false);
+  const [isStoppingTracking, setStoppingTracking] = useState(false);
   const [guestUserId] = useState(getOrCreateGuestUserId);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -58,6 +67,7 @@ export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const userId = user?.id ?? guestUserId;
+  const isTrackerOpen = trackerOption !== null;
 
   useEffect(() => {
     return () => abortControllerRef.current?.abort();
@@ -72,15 +82,21 @@ export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = "hidden";
-    window.requestAnimationFrame(() => textareaRef.current?.focus());
+    if (!isTrackerOpen) {
+      window.requestAnimationFrame(() => textareaRef.current?.focus());
+    }
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
-        closeChat();
+        if (isTrackerOpen) {
+          backToChat();
+        } else {
+          closeChat();
+        }
         return;
       }
 
-      if (event.key !== "Tab" || !dialogRef.current) {
+      if (event.key !== "Tab" || isTrackerOpen || !dialogRef.current) {
         return;
       }
 
@@ -104,7 +120,7 @@ export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onOpenChange]);
+  }, [isOpen, isTrackerOpen, onOpenChange]);
 
   useEffect(() => {
     if (isOpen) {
@@ -119,6 +135,57 @@ export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
   function closeChat() {
     onOpenChange(false);
     window.requestAnimationFrame(() => previousFocusRef.current?.focus());
+  }
+
+  async function startTracking(option: SearchOption) {
+    const payload = option.tracking_payload ?? directTrackingPayload(option);
+    if (!payload) {
+      return;
+    }
+    setTrackerOption(option);
+    setTracking(null);
+    setTrackerError("");
+    setCreatingTracking(true);
+    try {
+      setTracking(await createTracking(payload));
+    } catch (requestError) {
+      setTrackerError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Не удалось включить отслеживание цены.",
+      );
+    } finally {
+      setCreatingTracking(false);
+    }
+  }
+
+  function backToChat() {
+    setTrackerOption(null);
+    setTrackerError("");
+  }
+
+  async function updateTracking(action: "refresh" | "stop") {
+    if (!tracking) {
+      return;
+    }
+    const setPending = action === "refresh" ? setRefreshingTracking : setStoppingTracking;
+    setPending(true);
+    setTrackerError("");
+    try {
+      const updated =
+        action === "refresh"
+          ? await refreshTracking(tracking.id)
+          : await stopTracking(tracking.id);
+      setTracking(updated);
+    } catch (requestError) {
+      setTrackerError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Не удалось обновить отслеживание.",
+      );
+    } finally {
+      setPending(false);
+    }
   }
 
   async function submitMessage(rawMessage: string) {
@@ -210,7 +277,7 @@ export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
         </span>
       </button>
 
-      {isOpen ? (
+      {isOpen && !isTrackerOpen ? (
         <div
           className="chat-backdrop"
           role="presentation"
@@ -260,7 +327,10 @@ export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
                     <Suspense fallback={<span>Загружаю сообщение…</span>}>
                       <ChatMarkdown content={message.content} />
                     </Suspense>
-                    <TravelOptionCards options={message.options ?? []} />
+                    <TravelOptionCards
+                      options={message.options ?? []}
+                      onTrack={(option) => void startTracking(option)}
+                    />
                     {message.redirectUrl && !message.options?.length ? (
                       <a className="chat-redirect" href={message.redirectUrl}>
                         Перейти к вариантам
@@ -331,8 +401,79 @@ export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
           </section>
         </div>
       ) : null}
+      {isOpen && trackerOption ? (
+        <SmartTripTrackerWidget
+          option={trackerOption}
+          tracking={tracking}
+          error={trackerError}
+          isCreating={isCreatingTracking}
+          isRefreshing={isRefreshingTracking}
+          isStopping={isStoppingTracking}
+          onBack={backToChat}
+          onRetry={() => void startTracking(trackerOption)}
+          onRefresh={() => void updateTracking("refresh")}
+          onStop={() => void updateTracking("stop")}
+        />
+      ) : null}
     </>
   );
+}
+
+function directTrackingPayload(option: SearchOption): TrackingPayload | null {
+  const outbound = option.outbound;
+  if (!outbound || option.hotel || !isTransportMode(outbound.mode)) {
+    return null;
+  }
+  const inbound = option.inbound;
+  if (inbound && !isTransportMode(inbound.mode)) {
+    return null;
+  }
+  const toSegment = (
+    segment: NonNullable<SearchOption["outbound"]>,
+    bookingUrl: string | null,
+  ) => ({
+    mode: segment.mode as "train" | "flight" | "bus" | "suburban_train",
+    origin: segment.origin,
+    destination: segment.destination,
+    departure: segment.departure,
+    arrival: segment.arrival,
+    price: segment.price,
+    duration_minutes: segment.duration_minutes,
+    transfers: segment.transfers,
+    carrier: segment.carrier,
+    booking_url: bookingUrl,
+  });
+
+  return {
+    status: "success",
+    trip_spec: {
+      origin: outbound.origin,
+      destination: outbound.destination,
+      outbound_date: outbound.departure.slice(0, 10),
+      return_date: inbound?.departure.slice(0, 10) ?? null,
+      travelers: 1,
+      budget: null,
+      max_transfers: outbound.transfers + (inbound?.transfers ?? 0),
+    },
+    journeys: [
+      {
+        id: option.id,
+        total_price: option.total_price,
+        transport_price: option.total_price,
+        hotel_price: 0,
+        outbound: toSegment(outbound, option.action_url),
+        inbound: inbound ? toSegment(inbound, null) : null,
+        hotel: null,
+      },
+    ],
+    alternatives: [],
+  };
+}
+
+function isTransportMode(
+  mode: string,
+): mode is "train" | "flight" | "bus" | "suburban_train" {
+  return ["train", "flight", "bus", "suburban_train"].includes(mode);
 }
 
 function createGreeting(): ChatMessage {

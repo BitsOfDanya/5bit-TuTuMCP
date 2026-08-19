@@ -42,10 +42,11 @@ export function time(value: string): string {
   return timeFormatter.format(new Date(value));
 }
 
-export function dateRange(from: string, to: string): string {
-  return `${dateFormatter.format(new Date(`${from}T12:00:00`))} — ${dateFormatter.format(
-    new Date(`${to}T12:00:00`),
-  )}`;
+export function dateRange(from: string, to: string | null): string {
+  const departure = dateFormatter.format(new Date(`${from}T12:00:00`));
+  return to
+    ? `${departure} — ${dateFormatter.format(new Date(`${to}T12:00:00`))}`
+    : departure;
 }
 
 export function travelerLabel(count: number): string {

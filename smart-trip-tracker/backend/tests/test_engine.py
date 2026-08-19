@@ -46,3 +46,17 @@ def test_service_tracks_history_and_changes_recommendation() -> None:
     assert spiked.summary.current_price > dropped.summary.current_price
     assert spiked.summary.difference_from_min > 0
     assert spiked.recommendation.status is RecommendationStatus.WAIT
+
+
+def test_ranks_transport_only_for_one_way_trip() -> None:
+    trip_intent = intent().model_copy(
+        update={"return_date": None, "transport_mode": "train", "hotel_rating_min": 0}
+    )
+    candidates = DemoTripOfferProvider().search(trip_intent)
+
+    best = select_best_trip(candidates, trip_intent)
+
+    assert best.hotel is None
+    assert best.hotel_price == 0
+    assert best.transport.return_departure_at is None
+    assert best.useful_time_hours > 0

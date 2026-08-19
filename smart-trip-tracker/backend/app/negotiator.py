@@ -13,7 +13,7 @@ class NegotiatorTripSpec(BaseModel):
     origin: str = Field(min_length=2, max_length=120)
     destination: str = Field(min_length=2, max_length=120)
     outbound_date: date
-    return_date: date
+    return_date: date | None = None
     travelers: int = Field(default=1, ge=1, le=9)
     budget: int | None = Field(default=None, gt=0)
     max_transfers: int | None = Field(default=None, ge=0, le=5)
@@ -45,7 +45,7 @@ class NegotiatorJourney(BaseModel):
     transport_price: int = Field(ge=0)
     hotel_price: int = Field(ge=0)
     outbound: NegotiatorTransportSegment
-    inbound: NegotiatorTransportSegment
+    inbound: NegotiatorTransportSegment | None = None
     hotel: NegotiatorHotel | None = None
 
 
@@ -75,6 +75,7 @@ def adapt_negotiation_result(
         destination=trip_spec.destination,
         departure_date=trip_spec.outbound_date,
         return_date=trip_spec.return_date,
+        transport_mode=journey.outbound.mode,
         adults=trip_spec.travelers,
         budget=trip_spec.budget,
         direct_only=trip_spec.max_transfers == 0,
@@ -103,15 +104,25 @@ def _select_journey(
 
 
 def _to_best_trip(journey: NegotiatorJourney) -> BestTrip:
-    useful_time_hours = max(
-        0.0,
-        (journey.inbound.departure - journey.outbound.arrival).total_seconds() / 3600,
+    useful_time_hours = (
+        max(
+            0.0,
+            (journey.inbound.departure - journey.outbound.arrival).total_seconds()
+            / 3600,
+        )
+        if journey.inbound is not None
+        else _duration_minutes(journey.outbound) / 60
     )
-    transfers = journey.outbound.transfers + journey.inbound.transfers
+    transfers = journey.outbound.transfers + (
+        journey.inbound.transfers if journey.inbound is not None else 0
+    )
     carriers = list(
         dict.fromkeys(
             carrier
-            for carrier in (journey.outbound.carrier, journey.inbound.carrier)
+            for carrier in (
+                journey.outbound.carrier,
+                journey.inbound.carrier if journey.inbound is not None else None,
+            )
             if carrier
         )
     )
@@ -131,15 +142,21 @@ def _to_best_trip(journey: NegotiatorJourney) -> BestTrip:
         price=journey.transport_price,
         departure_at=journey.outbound.departure,
         arrival_at=journey.outbound.arrival,
-        return_departure_at=journey.inbound.departure,
-        return_arrival_at=journey.inbound.arrival,
+        return_departure_at=(
+            journey.inbound.departure if journey.inbound is not None else None
+        ),
+        return_arrival_at=(
+            journey.inbound.arrival if journey.inbound is not None else None
+        ),
         duration_minutes=(
-            _duration_minutes(journey.outbound) + _duration_minutes(journey.inbound)
+            _duration_minutes(journey.outbound)
+            + (_duration_minutes(journey.inbound) if journey.inbound is not None else 0)
         ),
         transfers=transfers,
         carriers=carriers or [journey.outbound.mode],
         search_results_url=(
-            journey.outbound.booking_url or journey.inbound.booking_url
+            journey.outbound.booking_url
+            or (journey.inbound.booking_url if journey.inbound is not None else None)
         ),
     )
     hotel_rating = hotel.rating if hotel is not None else 0

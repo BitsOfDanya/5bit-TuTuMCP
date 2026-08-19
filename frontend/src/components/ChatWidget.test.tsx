@@ -15,6 +15,93 @@ const authenticatedUser: User = {
   display_name: "Traveller",
 };
 
+const trackingPayload = {
+  status: "success",
+  trip_spec: {
+    origin: "Москва",
+    destination: "Казань",
+    outbound_date: "2026-09-01",
+    return_date: null,
+    travelers: 1,
+    budget: null,
+    max_transfers: 0,
+  },
+  journeys: [
+    {
+      id: "journey-1",
+      total_price: 18_900,
+      transport_price: 18_900,
+      hotel_price: 0,
+      outbound: {
+        mode: "train",
+        origin: "Москва",
+        destination: "Казань",
+        departure: "2026-09-01T10:00:00+03:00",
+        arrival: "2026-09-01T21:30:00+03:00",
+        price: 9_500,
+        duration_minutes: 690,
+        transfers: 0,
+        carrier: "ФПК",
+        booking_url: "https://www.tutu.ru/poezda/view_d.php?np=002E",
+      },
+      inbound: null,
+      hotel: null,
+    },
+  ],
+  alternatives: [],
+};
+
+const trackingResponse = {
+  id: "44444444-4444-4444-8444-444444444444",
+  intent: {
+    origin: "Москва",
+    destination: "Казань",
+    departure_date: "2026-09-01",
+    return_date: null,
+    adults: 1,
+    budget: 30_000,
+    direct_only: true,
+    hotel_rating_min: 0,
+  },
+  active: true,
+  created_at: "2026-08-19T10:00:00Z",
+  last_checked_at: "2026-08-19T10:00:00Z",
+  summary: {
+    current_price: 18_900,
+    minimum_price: 18_900,
+    average_price: 18_900,
+    difference_from_min: 0,
+  },
+  recommendation: {
+    status: "COLLECTING_DATA",
+    message: "Нужно больше наблюдений для уверенной рекомендации.",
+  },
+  current_trip: {
+    total_price: 18_900,
+    transport_price: 18_900,
+    hotel_price: 0,
+    trip_score: 80,
+    useful_time_hours: 92.5,
+    transfers: 0,
+    hotel_rating: 0,
+    transport: {
+      id: "journey-1:transport",
+      price: 18_900,
+      currency: "RUB",
+      departure_at: "2026-09-01T10:00:00+03:00",
+      arrival_at: "2026-09-01T21:30:00+03:00",
+      return_departure_at: null,
+      return_arrival_at: null,
+      duration_minutes: 690,
+      transfers: 0,
+      carriers: ["ФПК"],
+      search_results_url: "https://www.tutu.ru/poezda/view_d.php?np=002E",
+    },
+    hotel: null,
+  },
+  history: [{ timestamp: "2026-08-19T10:00:00Z", total_price: 18_900, trip_score: 80 }],
+};
+
 beforeEach(() => {
   window.localStorage.clear();
 });
@@ -100,8 +187,9 @@ test("renders Markdown responses and continues the backend session", async () =>
   });
 });
 
-test("renders MCP search results as external booking links", async () => {
+test("starts price tracking from an MCP result card", async () => {
   const user = userEvent.setup();
+  let trackerRequest: Record<string, unknown> | null = null;
   server.use(
     http.post("/api/v1/agent/chat", () =>
       HttpResponse.json({
@@ -140,10 +228,15 @@ test("renders MCP search results as external booking links", async () => {
             hotel: null,
             changes: [],
             action_url: "https://www.tutu.ru/poezda/view_d.php?np=002E",
+            tracking_payload: null,
           },
         ],
       }),
     ),
+    http.post("/api/v1/tracker/trips", async ({ request }) => {
+      trackerRequest = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json(trackingResponse, { status: 201 });
+    }),
   );
 
   renderChat();
@@ -151,19 +244,29 @@ test("renders MCP search results as external booking links", async () => {
   await user.type(screen.getByLabelText("Сообщение Джарвеллу"), "Покажи варианты");
   await user.click(screen.getByRole("button", { name: "Отправить сообщение" }));
 
-  const card = await screen.findByRole("link", {
-    name: /открыть вариант: Москва — Казань/i,
-  });
+  const card = (await screen.findByText("Москва — Казань")).closest("article");
+  if (!card) {
+    throw new Error("Travel option card was not rendered.");
+  }
   expect(within(card).getByText("18 900 ₽")).toBeInTheDocument();
   expect(card).toHaveTextContent("10:00");
   expect(card).toHaveTextContent("21:30");
-  expect(card).toHaveTextContent("Перейти к оформлению");
-  expect(card).toHaveAttribute(
+  const bookingLink = within(card).getByRole("link", { name: "Перейти к оформлению" });
+  expect(bookingLink).toHaveAttribute(
     "href",
     "https://www.tutu.ru/poezda/view_d.php?np=002E",
   );
-  expect(card).toHaveAttribute("target", "_blank");
+  expect(bookingLink).toHaveAttribute("target", "_blank");
   expect(screen.queryByText("Перейти к вариантам")).not.toBeInTheDocument();
+
+  await user.click(
+    within(card).getByRole("button", { name: "Отслеживать цену варианта Москва — Казань" }),
+  );
+
+  const tracker = await screen.findByRole("dialog", { name: "Отслеживание цены" });
+  expect(within(tracker).getByText("Цена отслеживается")).toBeInTheDocument();
+  expect(within(tracker).getAllByText("18 900 ₽").length).toBeGreaterThan(0);
+  expect(trackerRequest).toEqual(trackingPayload);
 });
 
 test("chat dialog has no automated accessibility violations", async () => {

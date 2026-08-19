@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  BellRing,
   BusFront,
   Clock3,
   ExternalLink,
@@ -15,9 +16,10 @@ import type { SearchOption, SearchSegment } from "../api/chat";
 
 interface TravelOptionCardsProps {
   options: SearchOption[];
+  onTrack: (option: SearchOption) => void;
 }
 
-export function TravelOptionCards({ options }: TravelOptionCardsProps) {
+export function TravelOptionCards({ options, onTrack }: TravelOptionCardsProps) {
   if (!options.length) {
     return null;
   }
@@ -25,16 +27,28 @@ export function TravelOptionCards({ options }: TravelOptionCardsProps) {
   return (
     <div className="travel-options" aria-label="Найденные варианты">
       {options.map((option) => (
-        <TravelOptionCard key={`${option.kind}-${option.id}`} option={option} />
+        <TravelOptionCard
+          key={`${option.kind}-${option.id}`}
+          option={option}
+          onTrack={onTrack}
+        />
       ))}
     </div>
   );
 }
 
-function TravelOptionCard({ option }: { option: SearchOption }) {
+function TravelOptionCard({
+  option,
+  onTrack,
+}: {
+  option: SearchOption;
+  onTrack: (option: SearchOption) => void;
+}) {
   const href = safeActionUrl(option.action_url);
-  const content = (
-    <>
+  const isExternal = href?.startsWith("http://") || href?.startsWith("https://");
+
+  return (
+    <article className="travel-option-card">
       <div className="travel-option-heading">
         <span className={`travel-option-kind travel-option-kind-${option.kind}`}>
           {option.kind === "relaxation" ? (
@@ -74,30 +88,34 @@ function TravelOptionCard({ option }: { option: SearchOption }) {
         </div>
       ) : null}
 
-      <div className="travel-option-action">
-        <span>
-          {href ? "Перейти к оформлению" : "Ссылка пока недоступна"}
-        </span>
-        {href ? <ExternalLink size={14} aria-hidden="true" /> : null}
+      <div className="travel-option-actions">
+        {href ? (
+          <a
+            className="travel-option-action"
+            href={href}
+            target={isExternal ? "_blank" : undefined}
+            rel={isExternal ? "noreferrer" : undefined}
+          >
+            Перейти к оформлению
+            <ExternalLink size={14} aria-hidden="true" />
+          </a>
+        ) : (
+          <span className="travel-option-action travel-option-action-disabled">
+            Ссылка недоступна
+          </span>
+        )}
+        <button
+          className="travel-option-track"
+          type="button"
+          disabled={!option.tracking_payload && !option.outbound}
+          onClick={() => onTrack(option)}
+          aria-label={`Отслеживать цену варианта ${option.title}`}
+        >
+          <BellRing size={14} aria-hidden="true" />
+          Отслеживать цену
+        </button>
       </div>
-    </>
-  );
-
-  if (!href) {
-    return <article className="travel-option-card travel-option-card-disabled">{content}</article>;
-  }
-
-  const isExternal = href.startsWith("http://") || href.startsWith("https://");
-  return (
-    <a
-      className="travel-option-card"
-      href={href}
-      target={isExternal ? "_blank" : undefined}
-      rel={isExternal ? "noreferrer" : undefined}
-      aria-label={`Открыть вариант: ${option.title}, ${formatMoney(option.total_price, option.currency)}`}
-    >
-      {content}
-    </a>
+    </article>
   );
 }
 

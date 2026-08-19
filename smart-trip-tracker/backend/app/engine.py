@@ -17,6 +17,9 @@ class NoMatchingTripsError(RuntimeError):
 
 
 def select_best_trip(candidates: TripCandidates, intent: TripIntent) -> BestTrip:
+    if not candidates.hotels:
+        return _select_transport_only(candidates, intent)
+
     combinations: list[dict[str, object]] = []
     for transport, hotel in product(candidates.transport[:5], candidates.hotels[:5]):
         if intent.direct_only and transport.transfers:
@@ -77,6 +80,45 @@ def select_best_trip(candidates: TripCandidates, intent: TripIntent) -> BestTrip
             )
         )
 
+    return max(ranked, key=lambda trip: (trip.trip_score, -trip.total_price))
+
+
+def _select_transport_only(candidates: TripCandidates, intent: TripIntent) -> BestTrip:
+    offers = [
+        transport
+        for transport in candidates.transport[:5]
+        if not (intent.direct_only and transport.transfers)
+    ]
+    if intent.budget is not None:
+        affordable = [transport for transport in offers if transport.price <= intent.budget]
+        if affordable:
+            offers = affordable
+    if not offers:
+        raise NoMatchingTripsError("No matching transport options were found.")
+
+    min_price = min(transport.price for transport in offers)
+    max_price = max(transport.price for transport in offers)
+    ranked = [
+        BestTrip(
+            total_price=transport.price,
+            transport_price=transport.price,
+            hotel_price=0,
+            trip_score=round(
+                (
+                    _inverse_scale(transport.price, min_price, max_price) * 0.8
+                    + (1.0 if transport.transfers == 0 else 0.0) * 0.2
+                )
+                * 100,
+                1,
+            ),
+            useful_time_hours=round(transport.duration_minutes / 60, 1),
+            transfers=transport.transfers,
+            hotel_rating=0,
+            transport=transport,
+            hotel=None,
+        )
+        for transport in offers
+    ]
     return max(ranked, key=lambda trip: (trip.trip_score, -trip.total_price))
 
 

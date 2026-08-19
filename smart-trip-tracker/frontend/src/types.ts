@@ -2,7 +2,7 @@ export interface NegotiatorTripSpec {
   origin: string;
   destination: string;
   outbound_date: string;
-  return_date: string;
+  return_date: string | null;
   travelers: number;
   budget: number | null;
   max_transfers: number | null;
@@ -61,7 +61,7 @@ export interface TripIntent {
   origin: string;
   destination: string;
   departure_date: string;
-  return_date: string;
+  return_date: string | null;
   adults: number;
   budget: number | null;
   direct_only: boolean;
@@ -87,8 +87,8 @@ export interface BestTrip {
     carriers: string[];
     departure_at: string;
     arrival_at: string;
-    return_departure_at: string;
-    return_arrival_at: string;
+    return_departure_at: string | null;
+    return_arrival_at: string | null;
     search_results_url: string | null;
   };
   hotel: {

@@ -16,6 +16,7 @@ from app.domain.travel import (
 )
 from app.integrations.constraint_negotiator.client import get_constraint_negotiator_client
 from app.integrations.openai.document_extractor import get_document_extractor
+from app.integrations.smart_trip_tracker.client import get_smart_trip_tracker_client
 from app.main import app
 
 
@@ -73,11 +74,17 @@ class FakeConstraintNegotiator:
         return {"status": "ok", "service": "constraint-negotiator"}
 
 
+class FakeSmartTripTracker:
+    async def health(self) -> dict[str, str]:
+        return {"status": "ok", "service": "smart-trip-tracker"}
+
+
 @pytest.fixture
 def client() -> TestClient:
     app.dependency_overrides[get_agent] = FakeAgent
     app.dependency_overrides[get_document_extractor] = FakeExtractor
     app.dependency_overrides[get_constraint_negotiator_client] = FakeConstraintNegotiator
+    app.dependency_overrides[get_smart_trip_tracker_client] = FakeSmartTripTracker
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -105,7 +112,10 @@ def test_readiness_checks_constraint_negotiator(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json() == {
         "status": "ready",
-        "dependencies": {"constraint-negotiator": "ok"},
+        "dependencies": {
+            "constraint-negotiator": "ok",
+            "smart-trip-tracker": "ok",
+        },
     }
 
 

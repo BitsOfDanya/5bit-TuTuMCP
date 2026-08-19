@@ -348,9 +348,12 @@ function shortMoney(value: number): string {
   return `${Math.round(value / 1000)} тыс.`;
 }
 
-function formatDateRange(from: string, to: string): string {
+function formatDateRange(from: string, to: string | null): string {
   const formatter = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
-  return `${formatter.format(new Date(`${from}T12:00:00`))} — ${formatter.format(new Date(`${to}T12:00:00`))}`;
+  const departure = formatter.format(new Date(`${from}T12:00:00`));
+  return to
+    ? `${departure} — ${formatter.format(new Date(`${to}T12:00:00`))}`
+    : departure;
 }
 
 function dateTime(value: string): string {

@@ -38,7 +38,7 @@ class FakeAsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_maps_product_to_dedicated_search_endpoint(monkeypatch) -> None:
+async def test_maps_round_trip_to_public_negotiation_endpoint(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.integrations.constraint_negotiator.client.httpx.AsyncClient",
         FakeAsyncClient,
@@ -57,16 +57,18 @@ async def test_maps_product_to_dedicated_search_endpoint(monkeypatch) -> None:
         )
     )
     assert result["status"] == "success"
-    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/products/search"
+    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/from-spec/public"
     assert FakeAsyncClient.payload == {
-        "service_type": "train",
-        "origin": "Москва",
-        "destination": "Казань",
-        "start_date": "2026-09-01",
-        "end_date": "2026-09-05",
-        "preferred_time": "10:30:00",
-        "travelers": 2,
-        "budget": 30_000,
+        "trip": {
+            "origin": "Москва",
+            "destination": "Казань",
+            "outbound_date": "2026-09-01",
+            "return_date": "2026-09-05",
+            "outbound_after": "10:30:00",
+            "travelers": 2,
+            "budget": 30_000,
+            "preferred_transport": ["train"],
+        }
     }
 
 
@@ -87,8 +89,18 @@ async def test_searches_complete_one_way_trip(monkeypatch) -> None:
         )
     )
     assert result["status"] == "success"
+    assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/products/search"
     assert FakeAsyncClient.payload["service_type"] == "bus"
     assert FakeAsyncClient.payload["end_date"] is None
+    assert result["trip_spec"] == {
+        "origin": "Москва",
+        "destination": "Тула",
+        "outbound_date": "2026-09-01",
+        "return_date": None,
+        "travelers": 1,
+        "budget": None,
+        "max_transfers": None,
+    }
 
 
 def test_compacts_large_tutu_references_before_returning_to_agent() -> None:

@@ -29,7 +29,17 @@ def build_search_options(
             if not isinstance(item, dict):
                 continue
             try:
-                options.append(SearchOption.model_validate(item))
+                option = SearchOption.model_validate(item)
+                options.append(
+                    option.model_copy(
+                        update={
+                            "tracking_payload": _direct_tracking_payload(
+                                item,
+                                negotiation.get("trip_spec"),
+                            )
+                        }
+                    )
+                )
             except ValidationError:
                 continue
         return options
@@ -206,6 +216,52 @@ def _tracking_payload(journey: dict[str, Any], raw_spec: Any) -> TrackingPayload
             ],
         )
     except (KeyError, ValidationError):
+        return None
+
+
+def _direct_tracking_payload(option: dict[str, Any], raw_spec: Any) -> TrackingPayload | None:
+    outbound = option.get("outbound")
+    total_price = _non_negative_int(option.get("total_price"))
+    if not isinstance(outbound, dict) or total_price is None:
+        return None
+    spec = raw_spec if isinstance(raw_spec, dict) else {}
+    outbound_date = _date_value(spec.get("outbound_date"), outbound.get("departure"))
+    if outbound_date is None:
+        return None
+    try:
+        return TrackingPayload(
+            trip_spec=TrackingTripSpec(
+                origin=_text(spec.get("origin")) or _text(outbound.get("origin")) or "",
+                destination=(
+                    _text(spec.get("destination"))
+                    or _text(outbound.get("destination"))
+                    or ""
+                ),
+                outbound_date=outbound_date,
+                return_date=None,
+                travelers=_positive_int(spec.get("travelers")) or 1,
+                budget=_positive_int(spec.get("budget")),
+                max_transfers=_non_negative_int(spec.get("max_transfers")),
+            ),
+            journeys=[
+                TrackingJourney(
+                    id=str(option.get("id") or "selected-ticket"),
+                    total_price=total_price,
+                    transport_price=total_price,
+                    hotel_price=0,
+                    outbound=TrackingSegment.model_validate(
+                        {
+                            **_tracking_segment(outbound),
+                            "booking_url": option.get("action_url")
+                            or outbound.get("booking_url"),
+                        }
+                    ),
+                    inbound=None,
+                    hotel=None,
+                )
+            ],
+        )
+    except ValidationError:
         return None
 
 
