@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  BellRing,
   BusFront,
   CheckCircle2,
   Clock3,
@@ -19,6 +20,7 @@ interface TravelOptionCardsProps {
   acceptedOptionId?: string | null;
   acceptingOptionId?: string | null;
   onAccept?: (option: SearchOption) => void;
+  onTrack?: (option: SearchOption) => void;
 }
 
 export function TravelOptionCards({
@@ -26,6 +28,7 @@ export function TravelOptionCards({
   acceptedOptionId = null,
   acceptingOptionId = null,
   onAccept,
+  onTrack,
 }: TravelOptionCardsProps) {
   if (!options.length) {
     return null;
@@ -40,6 +43,7 @@ export function TravelOptionCards({
           isAccepted={acceptedOptionId === option.id}
           isAccepting={acceptingOptionId === option.id}
           onAccept={onAccept}
+          onTrack={onTrack}
         />
       ))}
     </div>
@@ -51,11 +55,13 @@ function TravelOptionCard({
   isAccepted,
   isAccepting,
   onAccept,
+  onTrack,
 }: {
   option: SearchOption;
   isAccepted: boolean;
   isAccepting: boolean;
   onAccept?: (option: SearchOption) => void;
+  onTrack?: (option: SearchOption) => void;
 }) {
   const href = safeActionUrl(option.action_url);
   const canAccept = Boolean(option.outbound && option.inbound && onAccept);
@@ -140,6 +146,18 @@ function TravelOptionCard({
         ) : (
           <span>Ссылка оформления пока недоступна</span>
         )}
+        {onTrack ? (
+          <button
+            className="travel-option-track"
+            type="button"
+            disabled={!option.tracking_payload && !option.outbound}
+            onClick={() => onTrack(option)}
+            aria-label={`Отслеживать цену варианта ${option.title}`}
+          >
+            <BellRing size={14} aria-hidden="true" />
+            Отслеживать цену
+          </button>
+        ) : null}
       </div>
       </>
     </article>

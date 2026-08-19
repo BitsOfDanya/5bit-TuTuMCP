@@ -96,6 +96,15 @@ async def test_searches_complete_one_way_trip(monkeypatch) -> None:
     assert FakeAsyncClient.url == "http://negotiator:8010/api/v1/negotiator/products/search"
     assert FakeAsyncClient.payload["service_type"] == "bus"
     assert FakeAsyncClient.payload["end_date"] is None
+    assert result["trip_spec"] == {
+        "origin": "Москва",
+        "destination": "Тула",
+        "outbound_date": "2026-09-01",
+        "return_date": None,
+        "travelers": 1,
+        "budget": None,
+        "max_transfers": None,
+    }
 
 
 def test_compacts_large_tutu_references_before_returning_to_agent() -> None:

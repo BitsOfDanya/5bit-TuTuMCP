@@ -52,7 +52,7 @@ export interface TrackingPayload {
     origin: string;
     destination: string;
     outbound_date: string;
-    return_date: string;
+    return_date: string | null;
     travelers: number;
     budget: number | null;
     max_transfers: number | null;
@@ -63,7 +63,7 @@ export interface TrackingPayload {
     transport_price: number;
     hotel_price: number;
     outbound: TrackingSegment;
-    inbound: TrackingSegment;
+    inbound: TrackingSegment | null;
     hotel: {
       name: string;
       price: number;

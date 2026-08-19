@@ -64,6 +64,7 @@ class PlanAction(StrEnum):
     VALIDATE_TRIP_DETAILS = "validate_trip_details"
     DETERMINE_NEXT_ACTION = "determine_next_action"
     NEGOTIATE_CONSTRAINTS = "negotiate_constraints"
+    ANALYZE_PURCHASE_TIMING = "analyze_purchase_timing"
     BUILD_SEARCH_REDIRECT = "build_search_redirect"
 
 
@@ -87,7 +88,11 @@ class TravelPlan(BaseModel):
         if actions[:3] != required_prefix:
             raise ValueError("The plan must start with extract, validate, and next action.")
         optional = actions[3:]
-        allowed = [PlanAction.NEGOTIATE_CONSTRAINTS, PlanAction.BUILD_SEARCH_REDIRECT]
+        allowed = [
+            PlanAction.NEGOTIATE_CONSTRAINTS,
+            PlanAction.ANALYZE_PURCHASE_TIMING,
+            PlanAction.BUILD_SEARCH_REDIRECT,
+        ]
         if any(action not in allowed for action in optional):
             raise ValueError("The plan contains an unsupported optional action.")
         if len(optional) != len(set(optional)):

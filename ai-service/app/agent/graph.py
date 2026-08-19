@@ -12,6 +12,7 @@ from app.agent.tools.registry import build_travel_tools
 from app.core.config import get_settings
 from app.domain.travel import AgentTurn, DecisionIntent, IntentClassification, TravelPlan
 from app.integrations.constraint_negotiator.client import get_constraint_negotiator_client
+from app.integrations.smart_trip_tracker.client import get_smart_trip_tracker_client
 
 
 def build_travel_workflow(
@@ -58,11 +59,12 @@ def get_agent() -> Any:
         reasoning_effort=settings.openai_reasoning_effort,
     )
     negotiator = get_constraint_negotiator_client()
+    tracker = get_smart_trip_tracker_client()
     planner = model.with_structured_output(TravelPlan)
     classifier = model.with_structured_output(IntentClassification)
     executor = create_agent(
         model=model,
-        tools=build_travel_tools(negotiator),
+        tools=build_travel_tools(negotiator, tracker),
         system_prompt=f"{EXECUTOR_PROMPT}\n\n{settings.agent_system_prompt}",
         response_format=AgentTurn,
     )

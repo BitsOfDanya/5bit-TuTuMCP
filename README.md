@@ -17,6 +17,8 @@
 - Trip Rescue меняет только затронутую часть принятой поездки и предлагает ближайший компромисс;
 - What-if сравнивает гипотезу без изменения принятой поездки, а Decision Explanation объясняет выбор;
 - Preference Learning, Cold Start и Group Preferences персонализируют обычный поиск и Rescue;
+- `smart-trip-tracker` подключён к агенту как `analyze_purchase_timing`: Джарвелл
+  отвечает на вопросы о моменте покупки по реальной истории цены;
 - найденный Jarvell вариант можно передать в Smart Trip Tracker и отслеживать прямо во frontend;
 - международные документы распознаются из PNG, JPEG и PDF;
 - компонентные, accessibility и FastAPI-тесты.
@@ -27,6 +29,7 @@
 frontend -> backend :8000 -> ai-service :8020 -> OpenAI
               |                   +-> constraint-negotiator :8010 -> Tutu MCP
               +-> trip-rescue :8030 -> Tutu MCP / OpenAI
+              |                   +-> smart-trip-tracker :8001
               +-> smart-trip-tracker :8001 -> Tutu MCP
 ```
 
@@ -84,6 +87,10 @@ OpenAI API и внешний Tutu MCP.
 
 После перезагрузки принятая поездка остаётся доступной. Личный профиль хранится отдельно,
 а групповой профиль вычисляется заново и не изменяет персональные preferences.
+
+После выдачи билетов можно спросить Джарвелла «Когда лучше покупать?». Агент вызовет
+`analyze_purchase_timing`, переиспользует подходящее активное отслеживание либо создаст
+его из найденного билета и ответит по рекомендации Smart Trip Tracker.
 
 ### Ручной запуск
 

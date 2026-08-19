@@ -108,6 +108,7 @@ class PlanAction(StrEnum):
     VALIDATE_TRIP_DETAILS = "validate_trip_details"
     DETERMINE_NEXT_ACTION = "determine_next_action"
     NEGOTIATE_CONSTRAINTS = "negotiate_constraints"
+    ANALYZE_PURCHASE_TIMING = "analyze_purchase_timing"
     BUILD_SEARCH_REDIRECT = "build_search_redirect"
 
 
@@ -131,7 +132,11 @@ class TravelPlan(BaseModel):
         if actions[:3] != required_prefix:
             raise ValueError("The plan must start with extract, validate, and next action.")
         optional = actions[3:]
-        allowed = {PlanAction.NEGOTIATE_CONSTRAINTS, PlanAction.BUILD_SEARCH_REDIRECT}
+        allowed = {
+            PlanAction.NEGOTIATE_CONSTRAINTS,
+            PlanAction.ANALYZE_PURCHASE_TIMING,
+            PlanAction.BUILD_SEARCH_REDIRECT,
+        }
         if any(action not in allowed for action in optional):
             raise ValueError("The plan contains an unsupported optional action.")
         if len(optional) != len(set(optional)):
@@ -189,7 +194,7 @@ class TrackingTripSpec(BaseModel):
     origin: str = Field(min_length=2, max_length=120)
     destination: str = Field(min_length=2, max_length=120)
     outbound_date: date
-    return_date: date
+    return_date: date | None = None
     travelers: int = Field(default=1, ge=1, le=9)
     budget: int | None = Field(default=None, gt=0)
     max_transfers: int | None = Field(default=None, ge=0, le=5)
@@ -221,7 +226,7 @@ class TrackingJourney(BaseModel):
     transport_price: int = Field(ge=0)
     hotel_price: int = Field(ge=0)
     outbound: TrackingSegment
-    inbound: TrackingSegment
+    inbound: TrackingSegment | None = None
     hotel: TrackingHotel | None = None
 
 
@@ -256,7 +261,7 @@ class TrackerIntent(BaseModel):
     origin: str
     destination: str
     departure_date: date
-    return_date: date
+    return_date: date | None
     adults: int
     budget: int | None
     direct_only: bool
@@ -275,8 +280,8 @@ class TrackerTransport(BaseModel):
     currency: str
     departure_at: datetime
     arrival_at: datetime
-    return_departure_at: datetime
-    return_arrival_at: datetime
+    return_departure_at: datetime | None
+    return_arrival_at: datetime | None
     duration_minutes: int
     transfers: int
     carriers: list[str]

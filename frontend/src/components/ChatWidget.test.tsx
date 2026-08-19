@@ -107,6 +107,7 @@ test("renders Markdown responses and continues the backend session", async () =>
 
 test("renders MCP search results as external booking links", async () => {
   const user = userEvent.setup();
+  let trackingRequest: Record<string, unknown> | null = null;
   server.use(
     http.post("/api/v1/agent/chat", () =>
       HttpResponse.json({
@@ -149,6 +150,59 @@ test("renders MCP search results as external booking links", async () => {
         ],
       }),
     ),
+    http.post("/api/v1/tracker/trips", async ({ request }) => {
+      trackingRequest = await request.json() as Record<string, unknown>;
+      return HttpResponse.json({
+        id: "44444444-4444-4444-8444-444444444444",
+        intent: {
+          origin: "Москва",
+          destination: "Казань",
+          departure_date: "2026-09-01",
+          return_date: null,
+          adults: 1,
+          budget: null,
+          direct_only: true,
+          hotel_rating_min: 0,
+        },
+        active: true,
+        created_at: "2026-08-19T10:00:00Z",
+        last_checked_at: "2026-08-19T10:00:00Z",
+        summary: {
+          current_price: 18_900,
+          minimum_price: 18_900,
+          average_price: 18_900,
+          difference_from_min: 0,
+        },
+        recommendation: {
+          status: "COLLECTING_DATA",
+          message: "Нужно больше наблюдений для уверенной рекомендации.",
+        },
+        current_trip: {
+          total_price: 18_900,
+          transport_price: 18_900,
+          hotel_price: 0,
+          trip_score: 80,
+          useful_time_hours: 92.5,
+          transfers: 0,
+          hotel_rating: 0,
+          transport: {
+            id: "journey-1:transport",
+            price: 18_900,
+            currency: "RUB",
+            departure_at: "2026-09-01T10:00:00+03:00",
+            arrival_at: "2026-09-01T21:30:00+03:00",
+            return_departure_at: null,
+            return_arrival_at: null,
+            duration_minutes: 690,
+            transfers: 0,
+            carriers: ["ФПК"],
+            search_results_url: "https://www.tutu.ru/poezda/view_d.php?np=002E",
+          },
+          hotel: null,
+        },
+        history: [{ timestamp: "2026-08-19T10:00:00Z", total_price: 18_900, trip_score: 80 }],
+      }, { status: 201 });
+    }),
   );
 
   renderChat();
@@ -171,6 +225,16 @@ test("renders MCP search results as external booking links", async () => {
   );
   expect(checkout).toHaveAttribute("target", "_blank");
   expect(screen.queryByText("Перейти к вариантам")).not.toBeInTheDocument();
+
+  await user.click(within(card).getByRole("button", {
+    name: "Отслеживать цену варианта Москва — Казань",
+  }));
+  const tracker = await screen.findByRole("dialog", { name: "Отслеживание цены" });
+  expect(within(tracker).getByText("Цена отслеживается")).toBeInTheDocument();
+  expect(trackingRequest).toMatchObject({
+    status: "success",
+    trip_spec: { origin: "Москва", destination: "Казань" },
+  });
 });
 
 test("accepts a round trip and runs a non-mutating What-if simulation", async () => {

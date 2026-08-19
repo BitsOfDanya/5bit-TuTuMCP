@@ -168,13 +168,16 @@ export function TrackingDashboard({
             arrival={tracking.current_trip.transport.arrival_at}
             carrier={tracking.current_trip.transport.carriers.join(", ")}
           />
-          <JourneyRow
-            icon={<Plane className="plane-return" size={19} aria-hidden="true" />}
-            label="Обратно"
-            departure={tracking.current_trip.transport.return_departure_at}
-            arrival={tracking.current_trip.transport.return_arrival_at}
-            carrier={tracking.current_trip.transport.carriers.join(", ")}
-          />
+          {tracking.current_trip.transport.return_departure_at &&
+          tracking.current_trip.transport.return_arrival_at ? (
+            <JourneyRow
+              icon={<Plane className="plane-return" size={19} aria-hidden="true" />}
+              label="Обратно"
+              departure={tracking.current_trip.transport.return_departure_at}
+              arrival={tracking.current_trip.transport.return_arrival_at}
+              carrier={tracking.current_trip.transport.carriers.join(", ")}
+            />
+          ) : null}
           {tracking.current_trip.hotel ? (
             <div className="hotel-row">
               <span className="journey-icon"><Hotel size={19} aria-hidden="true" /></span>

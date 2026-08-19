@@ -42,7 +42,7 @@ class TrackingTripSpec(BaseModel):
     origin: str
     destination: str
     outbound_date: str
-    return_date: str
+    return_date: str | None = None
     travelers: int = Field(default=1, ge=1, le=9)
     budget: int | None = Field(default=None, gt=0)
     max_transfers: int | None = Field(default=None, ge=0, le=5)
@@ -74,7 +74,7 @@ class TrackingJourney(BaseModel):
     transport_price: int = Field(ge=0)
     hotel_price: int = Field(ge=0)
     outbound: TrackingSegment
-    inbound: TrackingSegment
+    inbound: TrackingSegment | None = None
     hotel: TrackingHotel | None = None
 
 

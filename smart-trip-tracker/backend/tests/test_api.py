@@ -68,6 +68,46 @@ def trip_payload(
     return payload | overrides
 
 
+def one_way_payload() -> dict[str, object]:
+    payload = trip_payload(total_price=1141)
+    trip_spec = payload["trip_spec"]
+    journey = payload["journeys"][0]  # type: ignore[index]
+    assert isinstance(trip_spec, dict)
+    assert isinstance(journey, dict)
+    trip_spec.update(
+        {
+            "origin": "Санкт-Петербург",
+            "destination": "Москва",
+            "return_date": None,
+            "budget": 30_000,
+            "max_transfers": None,
+        }
+    )
+    journey.update(
+        {
+            "id": "train-745y",
+            "total_price": 1141,
+            "transport_price": 1141,
+            "hotel_price": 0,
+            "outbound": {
+                "mode": "train",
+                "origin": "Санкт-Петербург",
+                "destination": "Москва",
+                "departure": "2026-09-10T16:07:00+03:00",
+                "arrival": "2026-09-10T22:58:00+03:00",
+                "price": 1141,
+                "duration_minutes": 411,
+                "transfers": 0,
+                "carrier": "ФПК",
+                "booking_url": "https://www.tutu.ru/poezda/",
+            },
+            "inbound": None,
+            "hotel": None,
+        }
+    )
+    return payload
+
+
 class UnavailableProvider:
     def search(self, _intent: TripIntent) -> TripCandidates:
         raise TutuMcpError("Tutu MCP is unavailable.")
@@ -114,6 +154,23 @@ def test_create_simulate_and_stop_tracking(client: TestClient) -> None:
 
     refresh = client.post(f"/api/v1/trips/{tracking_id}/refresh")
     assert refresh.status_code == 409
+
+
+def test_creates_and_refreshes_one_way_train_tracking(client: TestClient) -> None:
+    created = client.post("/api/v1/trips", json=one_way_payload())
+
+    assert created.status_code == 201
+    body = created.json()
+    assert body["intent"]["return_date"] is None
+    assert body["intent"]["transport_mode"] == "train"
+    assert body["current_trip"]["transport"]["return_departure_at"] is None
+    assert body["summary"]["current_price"] == 1141
+
+    refreshed = client.post(f"/api/v1/trips/{body['id']}/refresh")
+
+    assert refreshed.status_code == 200
+    assert len(refreshed.json()["history"]) == 2
+    assert refreshed.json()["current_trip"]["hotel"] is None
 
 
 def test_returns_422_when_negotiator_has_no_options(client: TestClient) -> None:

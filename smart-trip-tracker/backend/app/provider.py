@@ -21,12 +21,19 @@ class TutuMcpProvider:
     def __init__(
         self,
         endpoint: str = "https://mcp.tutu.ru/mcp",
+        constraint_endpoint: str = "http://127.0.0.1:8010",
         timeout_seconds: float = 30,
     ) -> None:
         self.endpoint = endpoint
+        self.constraint_endpoint = constraint_endpoint.rstrip("/")
         self.timeout_seconds = timeout_seconds
 
     def search(self, intent: TripIntent) -> TripCandidates:
+        if intent.return_date is None:
+            return self._search_one_way(intent)
+        if intent.transport_mode != "flight":
+            return self._search_round_trip(intent)
+
         transport_payload = self._call_tool(
             "search_avia",
             {
@@ -57,6 +64,60 @@ class TutuMcpProvider:
             transport=_normalize_avia(transport_payload),
             hotels=_normalize_hotels(hotel_payload),
         )
+
+    def _search_one_way(self, intent: TripIntent) -> TripCandidates:
+        service_type = (
+            "train" if intent.transport_mode == "suburban_train" else intent.transport_mode
+        )
+        payload = self._post_constraint(
+            "/api/v1/negotiator/products/search",
+            {
+                "service_type": service_type,
+                "origin": intent.origin,
+                "destination": intent.destination,
+                "start_date": intent.departure_date.isoformat(),
+                "end_date": None,
+                "travelers": intent.adults,
+                "budget": intent.budget,
+            },
+        )
+        return TripCandidates(
+            transport=_normalize_product_options(payload),
+            hotels=[],
+        )
+
+    def _search_round_trip(self, intent: TripIntent) -> TripCandidates:
+        payload = self._post_constraint(
+            "/api/v1/negotiator/from-spec/public",
+            {
+                "trip": {
+                    "origin": intent.origin,
+                    "destination": intent.destination,
+                    "outbound_date": intent.departure_date.isoformat(),
+                    "return_date": intent.return_date.isoformat(),
+                    "travelers": intent.adults,
+                    "budget": intent.budget,
+                    "preferred_transport": [intent.transport_mode],
+                    "max_transfers": 0 if intent.direct_only else None,
+                }
+            },
+        )
+        return _normalize_negotiation(payload)
+
+    def _post_constraint(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        try:
+            response = httpx.post(
+                f"{self.constraint_endpoint}{path}",
+                json=payload,
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+            result = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise TutuMcpError("Constraint Negotiator is unavailable.") from exc
+        if not isinstance(result, dict):
+            raise TutuMcpError("Constraint Negotiator returned an unexpected payload.")
+        return result
 
     def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         request = {
@@ -102,10 +163,10 @@ class DemoTripOfferProvider:
             datetime.min.time(),
             tzinfo=UTC,
         )
-        return_base = datetime.combine(
-            intent.return_date,
-            datetime.min.time(),
-            tzinfo=UTC,
+        return_base = (
+            datetime.combine(intent.return_date, datetime.min.time(), tzinfo=UTC)
+            if intent.return_date is not None
+            else None
         )
         transport = [
             TransportOffer(
@@ -113,9 +174,9 @@ class DemoTripOfferProvider:
                 price=18_900,
                 departure_at=outbound_base + timedelta(hours=7),
                 arrival_at=outbound_base + timedelta(hours=9),
-                return_departure_at=return_base + timedelta(hours=19),
-                return_arrival_at=return_base + timedelta(hours=21),
-                duration_minutes=240,
+                return_departure_at=(return_base + timedelta(hours=19) if return_base else None),
+                return_arrival_at=(return_base + timedelta(hours=21) if return_base else None),
+                duration_minutes=240 if return_base else 120,
                 transfers=0,
                 carriers=["Demo Air"],
                 search_results_url="https://avia.tutu.ru/",
@@ -125,9 +186,9 @@ class DemoTripOfferProvider:
                 price=21_400,
                 departure_at=outbound_base + timedelta(hours=11),
                 arrival_at=outbound_base + timedelta(hours=13),
-                return_departure_at=return_base + timedelta(hours=21),
-                return_arrival_at=return_base + timedelta(hours=23),
-                duration_minutes=240,
+                return_departure_at=(return_base + timedelta(hours=21) if return_base else None),
+                return_arrival_at=(return_base + timedelta(hours=23) if return_base else None),
+                duration_minutes=240 if return_base else 120,
                 transfers=0,
                 carriers=["Comfort Demo"],
                 search_results_url="https://avia.tutu.ru/",
@@ -137,9 +198,9 @@ class DemoTripOfferProvider:
                 price=16_700,
                 departure_at=outbound_base + timedelta(hours=9),
                 arrival_at=outbound_base + timedelta(hours=14),
-                return_departure_at=return_base + timedelta(hours=16),
-                return_arrival_at=return_base + timedelta(hours=22),
-                duration_minutes=660,
+                return_departure_at=(return_base + timedelta(hours=16) if return_base else None),
+                return_arrival_at=(return_base + timedelta(hours=22) if return_base else None),
+                duration_minutes=660 if return_base else 300,
                 transfers=2,
                 carriers=["Budget Demo"],
                 search_results_url="https://avia.tutu.ru/",
@@ -168,7 +229,7 @@ class DemoTripOfferProvider:
                 checkout_url="https://hotel.tutu.ru/",
             ),
         ]
-        return TripCandidates(transport=transport, hotels=hotels)
+        return TripCandidates(transport=transport, hotels=hotels if return_base else [])
 
 
 def _content_text(result: dict[str, Any]) -> str | None:
@@ -226,3 +287,90 @@ def _normalize_hotels(payload: dict[str, Any]) -> list[HotelOffer]:
         except (KeyError, TypeError, ValueError):
             continue
     return normalized
+
+
+def _normalize_product_options(payload: dict[str, Any]) -> list[TransportOffer]:
+    normalized: list[TransportOffer] = []
+    for option in payload.get("options", []):
+        try:
+            outbound = option["outbound"]
+            duration = outbound.get("duration_minutes")
+            if duration is None:
+                duration = _minutes_between(outbound["departure"], outbound["arrival"])
+            normalized.append(
+                TransportOffer(
+                    id=str(option["id"]),
+                    price=int(option["total_price"]),
+                    currency=str(option.get("currency", "RUB")),
+                    departure_at=outbound["departure"],
+                    arrival_at=outbound["arrival"],
+                    duration_minutes=int(duration),
+                    transfers=int(outbound.get("transfers", 0)),
+                    carriers=[str(outbound.get("carrier") or outbound.get("mode") or "")],
+                    search_results_url=option.get("action_url") or outbound.get("booking_url"),
+                )
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    return normalized
+
+
+def _normalize_negotiation(payload: dict[str, Any]) -> TripCandidates:
+    journeys = payload.get("journeys", [])
+    if not journeys:
+        journeys = [
+            alternative.get("journey")
+            for alternative in payload.get("alternatives", [])
+            if isinstance(alternative, dict)
+        ]
+    journeys = [journey for journey in journeys if isinstance(journey, dict)]
+    if not journeys:
+        return TripCandidates(transport=[], hotels=[])
+    journey = min(journeys, key=lambda item: int(item.get("total_price", 0)))
+    try:
+        outbound = journey["outbound"]
+        inbound = journey["inbound"]
+        transport = TransportOffer(
+            id=f"{journey['id']}:transport",
+            price=int(journey["transport_price"]),
+            departure_at=outbound["departure"],
+            arrival_at=outbound["arrival"],
+            return_departure_at=inbound["departure"],
+            return_arrival_at=inbound["arrival"],
+            duration_minutes=int(
+                (outbound.get("duration_minutes") or _minutes_between(outbound["departure"], outbound["arrival"]))
+                + (inbound.get("duration_minutes") or _minutes_between(inbound["departure"], inbound["arrival"]))
+            ),
+            transfers=int(outbound.get("transfers", 0)) + int(inbound.get("transfers", 0)),
+            carriers=list(
+                dict.fromkeys(
+                    str(carrier)
+                    for carrier in (outbound.get("carrier"), inbound.get("carrier"))
+                    if carrier
+                )
+            ),
+            search_results_url=outbound.get("booking_url") or inbound.get("booking_url"),
+        )
+        hotel_data = journey.get("hotel")
+        hotels = (
+            [
+                HotelOffer(
+                    id=f"{journey['id']}:hotel",
+                    name=str(hotel_data["name"]),
+                    price_total=int(journey.get("hotel_price", 0)),
+                    rating=float(hotel_data.get("rating") or 0),
+                    checkout_url=hotel_data.get("booking_url"),
+                )
+            ]
+            if isinstance(hotel_data, dict)
+            else []
+        )
+        return TripCandidates(transport=[transport], hotels=hotels)
+    except (KeyError, TypeError, ValueError):
+        return TripCandidates(transport=[], hotels=[])
+
+
+def _minutes_between(start: str, end: str) -> int:
+    departure = datetime.fromisoformat(start)
+    arrival = datetime.fromisoformat(end)
+    return max(0, round((arrival - departure).total_seconds() / 60))

@@ -1,12 +1,18 @@
 PLANNER_PROMPT = """
 You are the planner for a tutu.ru travel intake workflow. Produce a short executable plan
 for the latest user turn. Use only these actions: extract_trip_details,
-validate_trip_details, determine_next_action, negotiate_constraints, build_search_redirect.
+validate_trip_details, determine_next_action, negotiate_constraints,
+analyze_purchase_timing, build_search_redirect.
 
 Every plan must first extract or update trip details, then validate them, then determine
 the next action. Include negotiate_constraints for any complete product search request.
 Include build_search_redirect only when all
 required trip fields are likely present. Do not answer the user or invent search results.
+
+When the latest user asks when to buy, whether to buy now, or whether the ticket price is
+good after a completed transport search, include analyze_purchase_timing. Do not include
+negotiate_constraints or build_search_redirect for that follow-up: the analysis tool finds
+or creates the matching tracking itself.
 """.strip()
 
 INTENT_CLASSIFIER_PROMPT = """
@@ -46,6 +52,11 @@ briefly say search is temporarily unavailable and continue the intake flow.
 When search options are returned, keep assistant_message to one or two short sentences.
 Do not repeat carriers, departure times, durations, prices, or transfer counts because the
 interactive option cards render those facts and the decision explanation.
+
+When the plan includes analyze_purchase_timing, always call it with the complete normalized
+trip. Base the answer only on its Smart Trip Tracker recommendation and price statistics.
+Explain whether to buy now, wait, or collect more observations. Include the current and
+minimum prices when available. Never claim certainty when the tool reports insufficient data.
 
 Return every known value in trip and null for unknown values. Confirm newly understood
 details and ask for at most two next missing fields. Passenger documents are not required
