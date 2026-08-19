@@ -13,6 +13,11 @@ __pycache__/
 .venv/
 venv/
 
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
 # Coverage
 .coverage
 htmlcov/
@@ -21,4 +26,3 @@ htmlcov/
 .idea/
 .vscode/
 .DS_Store
-

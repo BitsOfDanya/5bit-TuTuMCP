@@ -5,18 +5,30 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[1] / "tutumcp.db"
 
 
-class Settings(BaseSettings):
+class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
+    database_url: str = f"sqlite+aiosqlite:///{DEFAULT_DATABASE_PATH}"
+    max_document_size_bytes: int = 10 * 1024 * 1024
+
+
+class Settings(DatabaseSettings):
     openai_api_key: SecretStr
     openai_model: str = "gpt-5.6-luna"
+    document_extraction_model: str = "gpt-5.6-luna"
     agent_system_prompt: str = "You are a helpful assistant. Be concise and accurate."
+
+
+@lru_cache
+def get_database_settings() -> DatabaseSettings:
+    return DatabaseSettings()
 
 
 @lru_cache
