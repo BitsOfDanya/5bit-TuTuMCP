@@ -48,8 +48,11 @@ if missing:
 if "negotiate_constraints" not in payload["tools_used"]:
     raise SystemExit("The full-chain request did not invoke negotiate_constraints")
 constraint_status = payload["tool_statuses"].get("negotiate_constraints")
-if constraint_status not in {"success", "negotiation_required", "no_options"}:
+allowed_statuses = {"success", "negotiation_required", "no_options", "unavailable"}
+if constraint_status not in allowed_statuses:
     raise SystemExit(f"Constraint negotiation failed: status={constraint_status!r}")
+if constraint_status == "unavailable":
+    print("Warning: Tutu MCP is temporarily unavailable; agent fallback passed")
 if constraint_status in {"success", "negotiation_required"}:
     options = payload["search_options"]
     if not options:

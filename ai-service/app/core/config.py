@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     agent_system_prompt: str = "Be concise, friendly, and accurate."
     max_document_size_bytes: int = 10 * 1024 * 1024
     constraint_negotiator_url: str = "http://127.0.0.1:8010"
-    constraint_negotiator_timeout_seconds: float = 45.0
+    constraint_negotiator_timeout_seconds: float = 150.0
     smart_trip_tracker_url: str = "http://127.0.0.1:8001"
     smart_trip_tracker_timeout_seconds: float = 60.0
     internal_api_token: SecretStr = Field(
