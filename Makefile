@@ -16,6 +16,7 @@ test:
 	cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q
 	cd ai-service && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q
 	cd constraint-negotiator && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q
+	cd smart-trip-tracker/backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q
 	cd frontend && npm test
 
 prod-config:

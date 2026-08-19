@@ -174,6 +174,53 @@ class SearchHotel(BaseModel):
     photo_url: str | None = None
 
 
+class TrackingTripSpec(BaseModel):
+    origin: str = Field(min_length=2, max_length=120)
+    destination: str = Field(min_length=2, max_length=120)
+    outbound_date: date
+    return_date: date
+    travelers: int = Field(default=1, ge=1, le=9)
+    budget: int | None = Field(default=None, gt=0)
+    max_transfers: int | None = Field(default=None, ge=0, le=5)
+
+
+class TrackingSegment(BaseModel):
+    mode: Literal["train", "flight", "bus", "suburban_train"]
+    origin: str
+    destination: str
+    departure: datetime
+    arrival: datetime
+    price: int = Field(ge=0)
+    duration_minutes: int | None = Field(default=None, ge=0)
+    transfers: int = Field(default=0, ge=0)
+    carrier: str | None = None
+    booking_url: str | None = None
+
+
+class TrackingHotel(BaseModel):
+    name: str
+    price: int = Field(ge=0)
+    rating: float | None = Field(default=None, ge=0, le=10)
+    booking_url: str | None = None
+
+
+class TrackingJourney(BaseModel):
+    id: str
+    total_price: int = Field(ge=0)
+    transport_price: int = Field(ge=0)
+    hotel_price: int = Field(ge=0)
+    outbound: TrackingSegment
+    inbound: TrackingSegment
+    hotel: TrackingHotel | None = None
+
+
+class TrackingPayload(BaseModel):
+    status: Literal["success"] = "success"
+    trip_spec: TrackingTripSpec
+    journeys: list[TrackingJourney] = Field(min_length=1, max_length=1)
+    alternatives: list[dict[str, object]] = Field(default_factory=list, max_length=0)
+
+
 class SearchOption(BaseModel):
     id: str
     kind: Literal["journey", "relaxation"]
@@ -186,6 +233,83 @@ class SearchOption(BaseModel):
     hotel: SearchHotel | None = None
     changes: list[str] = Field(default_factory=list)
     action_url: str | None = None
+    tracking_payload: TrackingPayload | None = None
+
+
+class TrackerIntent(BaseModel):
+    origin: str
+    destination: str
+    departure_date: date
+    return_date: date
+    adults: int
+    budget: int | None
+    direct_only: bool
+    hotel_rating_min: float
+
+
+class TrackerPricePoint(BaseModel):
+    timestamp: datetime
+    total_price: int
+    trip_score: float
+
+
+class TrackerTransport(BaseModel):
+    id: str
+    price: int
+    currency: str
+    departure_at: datetime
+    arrival_at: datetime
+    return_departure_at: datetime
+    return_arrival_at: datetime
+    duration_minutes: int
+    transfers: int
+    carriers: list[str]
+    search_results_url: str | None = None
+
+
+class TrackerHotel(BaseModel):
+    id: str
+    name: str
+    price_total: int
+    currency: str
+    rating: float
+    checkout_url: str | None = None
+
+
+class TrackerBestTrip(BaseModel):
+    total_price: int
+    transport_price: int
+    hotel_price: int
+    trip_score: float
+    useful_time_hours: float
+    transfers: int
+    hotel_rating: float
+    transport: TrackerTransport
+    hotel: TrackerHotel | None = None
+
+
+class TrackerPriceSummary(BaseModel):
+    current_price: int
+    minimum_price: int
+    average_price: int
+    difference_from_min: int
+
+
+class TrackerRecommendation(BaseModel):
+    status: Literal["COLLECTING_DATA", "BUY_NOW", "WAIT", "GOOD_VALUE"]
+    message: str
+
+
+class TripTrackingResponse(BaseModel):
+    id: UUID
+    intent: TrackerIntent
+    active: bool
+    created_at: datetime
+    last_checked_at: datetime
+    summary: TrackerPriceSummary
+    recommendation: TrackerRecommendation
+    current_trip: TrackerBestTrip
+    history: list[TrackerPricePoint]
 
 
 class AgentRequest(BaseModel):

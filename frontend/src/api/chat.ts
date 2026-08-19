@@ -31,6 +31,47 @@ export interface SearchHotel {
   photo_url: string | null;
 }
 
+export interface TrackingPayload {
+  status: "success";
+  trip_spec: {
+    origin: string;
+    destination: string;
+    outbound_date: string;
+    return_date: string;
+    travelers: number;
+    budget: number | null;
+    max_transfers: number | null;
+  };
+  journeys: Array<{
+    id: string;
+    total_price: number;
+    transport_price: number;
+    hotel_price: number;
+    outbound: TrackingSegment;
+    inbound: TrackingSegment;
+    hotel: {
+      name: string;
+      price: number;
+      rating: number | null;
+      booking_url: string | null;
+    } | null;
+  }>;
+  alternatives: [];
+}
+
+interface TrackingSegment {
+  mode: "train" | "flight" | "bus" | "suburban_train";
+  origin: string;
+  destination: string;
+  departure: string;
+  arrival: string;
+  price: number;
+  duration_minutes: number | null;
+  transfers: number;
+  carrier: string | null;
+  booking_url: string | null;
+}
+
 export interface SearchOption {
   id: string;
   kind: "journey" | "relaxation";
@@ -43,6 +84,7 @@ export interface SearchOption {
   hotel: SearchHotel | null;
   changes: string[];
   action_url: string | null;
+  tracking_payload: TrackingPayload | null;
 }
 
 export interface AgentChatResponse {
