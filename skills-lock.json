@@ -19,6 +19,16 @@
       "skillPath": "libs/cli/examples/skills/langgraph-docs/SKILL.md",
       "computedHash": "623b8c10cbb70f70ea875d1b0901f0fb0e174a837c2d6d10707627a46ae30631"
     },
+    "react-patterns": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "computedHash": "44d2c6304ff7ea20643a0203b74de9c7a42e1f70a2b73a5762500dea385dfc44"
+    },
+    "react-testing": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "computedHash": "59bd15f26f018d6629557108f936ab691af887508ae71b9d339855e49e337012"
+    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
