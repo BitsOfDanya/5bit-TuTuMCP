@@ -17,6 +17,9 @@ from app.api.routes import (
 from app.api.system import (
     router as system_router,
 )
+from app.api.whatif import (
+    router as whatif_router,
+)
 from app.config import (
     get_settings,
 )
@@ -46,7 +49,8 @@ settings = get_settings()
 app = FastAPI(
     title="Trip Rescue",
     description=(
-        "Minimal intelligent travel replan service "
+        "Minimal intelligent travel replan "
+        "and decision simulation service "
         "powered by Tutu MCP."
     ),
     version="0.2.0",
@@ -76,6 +80,10 @@ app.add_middleware(
 
 app.include_router(
     rescue_router
+)
+
+app.include_router(
+    whatif_router
 )
 
 app.include_router(

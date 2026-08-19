@@ -1,10 +1,12 @@
 .PHONY: \
 	test \
 	test-hardening \
+	test-whatif \
 	smoke \
 	smoke-rescue \
 	smoke-fallback \
 	smoke-preferences \
+	smoke-whatif \
 	smoke-prod \
 	up \
 	down \
@@ -25,7 +27,11 @@ test-hardening:
 	python -m pytest tests/test_parser_hardening.py -q
 
 
-smoke: smoke-rescue smoke-fallback smoke-preferences
+test-whatif:
+	python -m pytest tests/test_whatif.py tests/test_whatif_api.py -q
+
+
+smoke: smoke-rescue smoke-fallback smoke-preferences smoke-whatif
 
 
 smoke-rescue:
@@ -38,6 +44,10 @@ smoke-fallback:
 
 smoke-preferences:
 	python -m scripts.smoke_preferences
+
+
+smoke-whatif:
+	python -m scripts.smoke_whatif
 
 
 smoke-prod:
