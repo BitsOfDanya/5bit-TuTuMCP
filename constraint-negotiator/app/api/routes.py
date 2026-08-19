@@ -11,14 +11,24 @@ from pydantic import (
     Field,
 )
 
-from app.ai.parser import get_trip_parser
+from app.ai.parser import (
+    get_trip_parser,
+)
+from app.api.mapper import (
+    to_public_result,
+)
+from app.api.schemas import (
+    PublicNegotiationResult,
+)
 from app.graph.builder import (
     negotiator_graph,
 )
 from app.models.relaxation import (
     NegotiationResult,
 )
-from app.models.trip import TripSpec
+from app.models.trip import (
+    TripSpec,
+)
 
 
 router = APIRouter(
@@ -56,17 +66,11 @@ class ParseTextRequest(BaseModel):
 async def parse_trip_text(
     request: ParseTextRequest,
 ) -> TripSpec:
-    """
-    Debug/demo endpoint.
-
-    Only:
-        natural language -> TripSpec
-
-    Does NOT call Tutu MCP.
-    """
 
     try:
-        parser = get_trip_parser()
+        parser = (
+            get_trip_parser()
+        )
 
         return await parser.parse(
             message=request.text,
@@ -96,25 +100,12 @@ async def parse_trip_text(
 async def negotiate_from_spec(
     request: FromSpecRequest,
 ) -> NegotiationResult:
-    """
-    Structured TripSpec -> Tutu -> Negotiator.
 
-    LLM is NOT used.
-    """
-
-    state = await negotiator_graph.ainvoke(
-        {
-            "trip_spec": (
-                request.trip.model_dump(
-                    mode="json"
-                )
-            )
-        }
+    result = await _run_from_spec(
+        request.trip
     )
 
-    return NegotiationResult.model_validate(
-        state["result"]
-    )
+    return result
 
 
 @router.post(
@@ -124,13 +115,87 @@ async def negotiate_from_spec(
 async def negotiate_from_text(
     request: FromTextRequest,
 ) -> NegotiationResult:
-    """
-    Natural language
-        -> TripSpec
-        -> Tutu MCP
-        -> hotel
-        -> Constraint Negotiator.
-    """
+
+    return await _run_from_text(
+        request
+    )
+
+
+# ---------------------------------------------------------
+# PUBLIC / FRONTEND API
+# ---------------------------------------------------------
+
+
+@router.post(
+    "/from-spec/public",
+    response_model=(
+        PublicNegotiationResult
+    ),
+)
+async def negotiate_from_spec_public(
+    request: FromSpecRequest,
+) -> PublicNegotiationResult:
+
+    result = await _run_from_spec(
+        request.trip
+    )
+
+    return to_public_result(
+        result
+    )
+
+
+@router.post(
+    "/from-text/public",
+    response_model=(
+        PublicNegotiationResult
+    ),
+)
+async def negotiate_from_text_public(
+    request: FromTextRequest,
+) -> PublicNegotiationResult:
+
+    result = await _run_from_text(
+        request
+    )
+
+    return to_public_result(
+        result
+    )
+
+
+# ---------------------------------------------------------
+# INTERNAL HELPERS
+# ---------------------------------------------------------
+
+
+async def _run_from_spec(
+    trip: TripSpec,
+) -> NegotiationResult:
+
+    state = (
+        await negotiator_graph.ainvoke(
+            {
+                "trip_spec": (
+                    trip.model_dump(
+                        mode="json"
+                    )
+                )
+            }
+        )
+    )
+
+    return (
+        NegotiationResult
+        .model_validate(
+            state["result"]
+        )
+    )
+
+
+async def _run_from_text(
+    request: FromTextRequest,
+) -> NegotiationResult:
 
     try:
         state = (
@@ -143,7 +208,8 @@ async def negotiate_from_text(
                         (
                             request.reference_date
                             or date.today()
-                        ).isoformat()
+                        )
+                        .isoformat()
                     ),
                 }
             )
@@ -155,6 +221,9 @@ async def negotiate_from_text(
             detail=str(exc),
         ) from exc
 
-    return NegotiationResult.model_validate(
-        state["result"]
+    return (
+        NegotiationResult
+        .model_validate(
+            state["result"]
+        )
     )

@@ -17,6 +17,12 @@ from app.negotiator.applier import (
 from app.negotiator.feasibility import (
     evaluate_constraints,
 )
+from app.negotiator.policy import (
+    NegotiationPolicy,
+)
+from app.negotiator.presenter import (
+    build_relaxation_summary,
+)
 from app.negotiator.scorer import (
     score_change,
     score_plan,
@@ -24,6 +30,15 @@ from app.negotiator.scorer import (
 
 
 class ConstraintNegotiator:
+    def __init__(
+        self,
+        policy: NegotiationPolicy | None = None,
+    ) -> None:
+        self.policy = (
+            policy
+            or NegotiationPolicy()
+        )
+
     def solve(
         self,
         trip: TripSpec,
@@ -31,21 +46,10 @@ class ConstraintNegotiator:
         limit: int = 3,
         allow_combination_fallback: bool = True,
     ) -> NegotiationResult:
-        """
-        Constraint negotiation strategy.
 
-        Priority:
-
-        1. Exact feasible journeys.
-        2. Best single-constraint relaxations.
-        3. Pareto-efficient two-constraint combinations.
-        4. Never expose 3+ constraint compromises
-           in the primary negotiation flow.
-
-        Hard constraints are never relaxed.
-        """
-
-        feasible: list[JourneyOption] = []
+        feasible: list[
+            JourneyOption
+        ] = []
 
         single_plans: list[
             RelaxationPlan
@@ -62,7 +66,7 @@ class ConstraintNegotiator:
             )
 
             # -------------------------------------------------
-            # Exact feasible journey
+            # Exact solution
             # -------------------------------------------------
 
             if not changes:
@@ -72,29 +76,47 @@ class ConstraintNegotiator:
                 continue
 
             # -------------------------------------------------
-            # Hard constraints cannot be negotiated
+            # Hard constraints
             # -------------------------------------------------
 
-            violates_hard_constraint = any(
+            violates_hard = any(
                 change.field
                 in trip.hard_constraints
                 for change in changes
             )
 
-            if violates_hard_constraint:
+            if violates_hard:
                 continue
 
             # -------------------------------------------------
-            # Primary UI stops at two changes
+            # Do not show complex 3+ change negotiations
             # -------------------------------------------------
 
             if len(changes) > 2:
                 continue
 
-            relaxed_trip = build_relaxed_trip(
-                trip=trip,
-                journey=journey,
-                changes=changes,
+            # -------------------------------------------------
+            # Product policy
+            #
+            # Mathematically possible does not necessarily
+            # mean useful for a human.
+            # -------------------------------------------------
+
+            if not (
+                self.policy
+                .is_plan_reasonable(
+                    trip=trip,
+                    changes=changes,
+                )
+            ):
+                continue
+
+            relaxed_trip = (
+                build_relaxed_trip(
+                    trip=trip,
+                    journey=journey,
+                    changes=changes,
+                )
             )
 
             kind = (
@@ -114,8 +136,16 @@ class ConstraintNegotiator:
                     trip=trip,
                     changes=changes,
                 ),
-                new_trip_spec=relaxed_trip,
+                new_trip_spec=(
+                    relaxed_trip
+                ),
                 journey=journey,
+                summary=(
+                    build_relaxation_summary(
+                        journey=journey,
+                        changes=changes,
+                    )
+                ),
             )
 
             if len(changes) == 1:
@@ -128,15 +158,15 @@ class ConstraintNegotiator:
                 )
 
         # -----------------------------------------------------
-        # Exact solutions always win
+        # Exact journeys always win
         # -----------------------------------------------------
 
         if feasible:
             feasible.sort(
-                key=lambda item: (
-                    item.total_price,
-                    item.outbound.departure,
-                    item.inbound.arrival,
+                key=lambda journey: (
+                    journey.total_price,
+                    journey.outbound.departure,
+                    journey.inbound.arrival,
                 )
             )
 
@@ -148,7 +178,7 @@ class ConstraintNegotiator:
             )
 
         # -----------------------------------------------------
-        # Best single relaxation for each field
+        # Best single relaxation per constraint
         # -----------------------------------------------------
 
         selected = (
@@ -159,7 +189,7 @@ class ConstraintNegotiator:
         )
 
         # -----------------------------------------------------
-        # Pareto combinations only as fallback
+        # Pareto combinations
         # -----------------------------------------------------
 
         if (
@@ -167,7 +197,8 @@ class ConstraintNegotiator:
             and len(selected) < limit
         ):
             remaining = (
-                limit - len(selected)
+                limit
+                - len(selected)
             )
 
             combinations = (
@@ -203,10 +234,6 @@ class ConstraintNegotiator:
         plans: list[RelaxationPlan],
         limit: int,
     ) -> list[RelaxationPlan]:
-        """
-        Keep only the best concrete journey
-        for every individual constraint field.
-        """
 
         grouped: dict[
             ConstraintField,
@@ -250,7 +277,9 @@ class ConstraintNegotiator:
             )
         )
 
-        return best_per_field[:limit]
+        return best_per_field[
+            :limit
+        ]
 
     @classmethod
     def _select_pareto_combinations(
@@ -261,26 +290,6 @@ class ConstraintNegotiator:
         limit: int,
         already_selected: list[RelaxationPlan],
     ) -> list[RelaxationPlan]:
-        """
-        Select meaningful two-constraint compromises.
-
-        A combination is removed when:
-
-        - another combination dominates it;
-        - OR an already selected single relaxation
-          dominates it.
-
-        This prevents nonsense such as:
-
-            +13 864 ₽
-
-        being shown together with:
-
-            +16 892 ₽
-            +25 minutes
-
-        because the first proposal is strictly better.
-        """
 
         candidates = [
             plan
@@ -296,11 +305,6 @@ class ConstraintNegotiator:
                 candidates
             )
         )
-
-        # -----------------------------------------------------
-        # First remove combinations dominated by
-        # another combination.
-        # -----------------------------------------------------
 
         combination_frontier = [
             candidate
@@ -319,13 +323,6 @@ class ConstraintNegotiator:
             )
         ]
 
-        # -----------------------------------------------------
-        # Then remove combinations dominated by an
-        # already selected SINGLE plan.
-        #
-        # This was the missing piece.
-        # -----------------------------------------------------
-
         final_frontier = [
             candidate
             for candidate
@@ -340,10 +337,6 @@ class ConstraintNegotiator:
                 in already_selected
             )
         ]
-
-        # -----------------------------------------------------
-        # Avoid duplicate concrete journey
-        # -----------------------------------------------------
 
         selected_journey_ids = {
             plan.journey.id
@@ -371,24 +364,14 @@ class ConstraintNegotiator:
             )
         )
 
-        return final_frontier[:limit]
+        return final_frontier[
+            :limit
+        ]
 
     @staticmethod
     def _deduplicate_combinations(
         plans: list[RelaxationPlan],
     ) -> list[RelaxationPlan]:
-        """
-        For each identical pair of relaxed fields
-        keep the best concrete journey.
-
-        Example:
-
-            budget + transport
-            budget + transport
-            budget + transport
-
-        -> one best candidate.
-        """
 
         best: dict[
             tuple[str, ...],
@@ -408,7 +391,10 @@ class ConstraintNegotiator:
             )
 
             if current is None:
-                best[signature] = plan
+                best[
+                    signature
+                ] = plan
+
                 continue
 
             candidate_key = (
@@ -421,8 +407,13 @@ class ConstraintNegotiator:
                 current.journey.total_price,
             )
 
-            if candidate_key < current_key:
-                best[signature] = plan
+            if (
+                candidate_key
+                < current_key
+            ):
+                best[
+                    signature
+                ] = plan
 
         return list(
             best.values()
@@ -450,12 +441,6 @@ class ConstraintNegotiator:
         ConstraintField,
         float,
     ]:
-        """
-        Convert a relaxation into comparable
-        normalized inconvenience dimensions.
-
-        An untouched constraint has cost 0.
-        """
 
         vector = {
             field: 0.0
@@ -481,13 +466,6 @@ class ConstraintNegotiator:
         left: RelaxationPlan,
         right: RelaxationPlan,
     ) -> bool:
-        """
-        Pareto dominance:
-
-        left dominates right when it is
-        no worse on every constraint dimension
-        and strictly better on at least one.
-        """
 
         left_vector = (
             cls._change_vector(

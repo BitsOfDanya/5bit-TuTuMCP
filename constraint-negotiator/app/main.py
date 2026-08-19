@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import (
     CORSMiddleware,
@@ -11,7 +14,27 @@ from app.api.routes import (
 from app.api.system import (
     router as system_router,
 )
-from app.config import get_settings
+from app.config import (
+    get_settings,
+)
+from app.middleware.runtime import (
+    RateLimitMiddleware,
+    RequestObservabilityMiddleware,
+)
+
+
+logging.basicConfig(
+    level=os.getenv(
+        "LOG_LEVEL",
+        "INFO",
+    ).upper(),
+    format=(
+        "%(asctime)s "
+        "%(levelname)s "
+        "%(name)s "
+        "%(message)s"
+    ),
+)
 
 
 settings = get_settings()
@@ -20,10 +43,11 @@ settings = get_settings()
 app = FastAPI(
     title="Constraint Negotiator",
     description=(
-        "Constraint-aware travel negotiation "
-        "service powered by Tutu MCP."
+        "Constraint-aware travel "
+        "negotiation service "
+        "powered by Tutu MCP."
     ),
-    version="0.1.0",
+    version="0.2.0",
 )
 
 
@@ -35,6 +59,16 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+
+app.add_middleware(
+    RateLimitMiddleware
+)
+
+
+app.add_middleware(
+    RequestObservabilityMiddleware
 )
 
 
@@ -54,16 +88,12 @@ async def health() -> dict:
         "service": (
             "constraint-negotiator"
         ),
+        "version": "0.2.0",
     }
 
 
 @app.get("/ready")
 async def ready() -> dict:
-    """
-    Lightweight deployment readiness probe.
-
-    Does NOT call external services.
-    """
     return {
         "status": "ready",
     }
