@@ -118,7 +118,7 @@ test("opens Cold Start inside Jarvell from the traveller card", async () => {
   await user.click(await screen.findByRole("button", { name: "Получить" }));
 
   const dialog = screen.getByRole("dialog", { name: "Джарвелл" });
-  expect(within(dialog).getByRole("heading", { name: "Настроим поездки под тебя" })).toBeInTheDocument();
+  expect(await within(dialog).findByRole("heading", { name: "Настроим поездки под тебя" })).toBeInTheDocument();
   expect(within(dialog).getByText("4 быстрых выбора")).toBeInTheDocument();
 });
 

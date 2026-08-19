@@ -88,7 +88,7 @@ export function App() {
         onExperienceChange={setChatExperience}
         onRequireAuth={() => {
           setAuthOpen(true);
-          notify("Войдите, чтобы сохранить поездку и использовать Decision Intelligence.");
+          notify("Войдите, чтобы сохранить поездку, сравнивать сценарии и менять планы.");
         }}
         onNotify={notify}
       />

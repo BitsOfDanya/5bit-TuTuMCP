@@ -6,6 +6,7 @@ import {
   Clock3,
   ExternalLink,
   Hotel,
+  Info,
   Plane,
   RefreshCw,
   Sparkles,
@@ -115,11 +116,18 @@ function TravelOptionCard({
 
 
       {option.preference_reasons?.length ? (
-        <div className="travel-option-preference-reasons">
-          {option.preference_reasons.slice(0, 2).map((reason) => (
-            <span key={reason}>{reason}</span>
-          ))}
-        </div>
+        <details className="travel-option-reasons">
+          <summary><Sparkles size={13} aria-hidden="true" /> Почему этот вариант</summary>
+          <div className="travel-option-preference-reasons">
+            {option.preference_reasons.slice(0, 3).map((reason) => (
+              <span key={reason}>{reason}</span>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {option.price_intelligence ? (
+        <PriceIntelligence insight={option.price_intelligence} currency={option.currency} />
       ) : null}
 
       <div className="travel-option-actions">
@@ -155,12 +163,45 @@ function TravelOptionCard({
             aria-label={`Отслеживать цену варианта ${option.title}`}
           >
             <BellRing size={14} aria-hidden="true" />
-            Отслеживать цену
+            {option.price_intelligence ? "Показать динамику" : "Проверить цену"}
           </button>
         ) : null}
       </div>
       </>
     </article>
+  );
+}
+
+function PriceIntelligence({
+  insight,
+  currency,
+}: {
+  insight: NonNullable<SearchOption["price_intelligence"]>;
+  currency: string;
+}) {
+  const title = {
+    BUY_NOW: "Лучше покупать сейчас",
+    GOOD_VALUE: "Хорошая цена",
+    WAIT: "Можно подождать",
+    COLLECTING_DATA: "Наблюдаем за ценой",
+  }[insight.status];
+
+  return (
+    <aside className={`travel-price-intelligence price-${insight.status.toLowerCase()}`}>
+      <div>
+        <BellRing size={15} aria-hidden="true" />
+        <span><strong>{title}</strong><small>{insight.message}</small></span>
+      </div>
+      <details>
+        <summary><Info size={12} aria-hidden="true" /> Почему?</summary>
+        <dl>
+          <div><dt>Сейчас</dt><dd>{formatMoney(insight.current_price, currency)}</dd></div>
+          <div><dt>Минимум</dt><dd>{formatMoney(insight.minimum_price, currency)}</dd></div>
+          <div><dt>Средняя</dt><dd>{formatMoney(insight.average_price, currency)}</dd></div>
+        </dl>
+        <small>{observationLabel(insight.observations)}</small>
+      </details>
+    </aside>
   );
 }
 
@@ -274,6 +315,15 @@ function formatNights(nights: number): string {
   const suffix = nights % 10 === 1 && nights % 100 !== 11 ? "ночь" : nights % 10 < 5 &&
     (nights % 100 < 10 || nights % 100 >= 20) ? "ночи" : "ночей";
   return `${nights} ${suffix}`;
+}
+
+function observationLabel(value: number): string {
+  const suffix = value % 10 === 1 && value % 100 !== 11
+    ? "наблюдение"
+    : value % 10 >= 2 && value % 10 <= 4 && (value % 100 < 10 || value % 100 >= 20)
+      ? "наблюдения"
+      : "наблюдений";
+  return `${value} ${suffix} в истории`;
 }
 
 function safeActionUrl(value: string | null): string | null {

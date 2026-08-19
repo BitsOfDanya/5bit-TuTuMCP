@@ -46,6 +46,7 @@ export function GroupPreferences({
   const result = group.data?.result;
   const summary = result && "group" in result ? result.group : result;
   const ranking = result && "items" in result ? result.items : [];
+  const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
   return (
     <div className={embedded ? "group-embedded-host" : "modal-backdrop"} role={embedded ? undefined : "presentation"}>
       <section
@@ -93,8 +94,8 @@ export function GroupPreferences({
         {group.isError ? <p className="preference-error" role="alert">{group.error.message}</p> : null}
         {summary ? (
           <div className="group-result" aria-live="polite">
-            <strong>Consensus {Math.round(summary.consensus_score * 100)}%</strong>
-            <span>{summary.member_count} участника</span>
+            <strong>Лучший баланс для группы</strong>
+            <span>{consensusLabel(summary.consensus_score)} · {memberLabel(summary.member_count)}</span>
             {summary.highlights.map((highlight) => <p key={highlight}>{highlight}</p>)}
             {summary.conflicts.length ? <h3>Где мнения расходятся</h3> : null}
             {summary.conflicts.map((conflict) => (
@@ -107,8 +108,10 @@ export function GroupPreferences({
               .map((item) => (
                 <article className="group-ranking-item" key={item.candidate_id}>
                   <strong>№ {item.rank_after}</strong>
-                  <span>{item.candidate_id}</span>
-                  <small>{Math.round(item.preference_score * 100)}% preference score</small>
+                  <span>
+                    {candidateById.get(item.candidate_id)?.title ?? "Подходящий вариант"}
+                  </span>
+                  <small>{fitLabel(item.preference_score)}</small>
                   {item.reasons.slice(0, 2).map((reason) => <p key={reason}>{reason}</p>)}
                 </article>
               ))}
@@ -117,4 +120,25 @@ export function GroupPreferences({
       </section>
     </div>
   );
+}
+
+function consensusLabel(score: number): string {
+  if (score >= 0.75) return "Высокая согласованность";
+  if (score >= 0.5) return "Средняя согласованность";
+  return "Низкая согласованность";
+}
+
+function fitLabel(score: number): string {
+  if (score >= 0.75) return "Отлично подходит группе";
+  if (score >= 0.5) return "Хорошо подходит группе";
+  return "Компромиссный вариант";
+}
+
+function memberLabel(count: number): string {
+  const suffix = count % 10 === 1 && count % 100 !== 11
+    ? "участник"
+    : count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)
+      ? "участника"
+      : "участников";
+  return `${count} ${suffix}`;
 }

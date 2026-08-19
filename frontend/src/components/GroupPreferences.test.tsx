@@ -43,6 +43,7 @@ test("builds a virtual group profile and shows conflicts", async () => {
   await user.type(screen.getByLabelText("ID участников через запятую"), "profile-2");
   await user.click(screen.getByRole("button", { name: "Собрать групповой профиль" }));
 
-  expect(await screen.findByText("Consensus 72%")).toBeInTheDocument();
+  expect(await screen.findByText("Лучший баланс для группы")).toBeInTheDocument();
+  expect(screen.getByText(/Средняя согласованность/)).toBeInTheDocument();
   expect(screen.getByText(/одному участнику важнее цена/i)).toBeInTheDocument();
 });

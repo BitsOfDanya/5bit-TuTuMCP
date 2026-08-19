@@ -1804,6 +1804,114 @@ button:disabled {
   font-weight: 900;
 }
 
+.travel-option-reasons {
+  margin-top: 9px;
+}
+
+.travel-option-reasons > summary {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: #5b43b8;
+  font-size: 9px;
+  font-weight: 900;
+  list-style: none;
+}
+
+.travel-option-reasons > summary::-webkit-details-marker {
+  display: none;
+}
+
+.travel-option-reasons[open] > summary {
+  color: #3f2a95;
+}
+
+.travel-option-reasons .travel-option-preference-reasons {
+  margin-top: 6px;
+  padding-left: 2px;
+}
+
+.travel-price-intelligence {
+  margin-top: 9px;
+  padding: 9px 10px;
+  border: 1px solid #cdebdc;
+  border-radius: 11px;
+  color: #28684e;
+  background: #effaf5;
+  font-size: 9px;
+}
+
+.travel-price-intelligence > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.travel-price-intelligence > div > span {
+  display: grid;
+  gap: 2px;
+}
+
+.travel-price-intelligence strong {
+  font-size: 10px;
+}
+
+.travel-price-intelligence small {
+  color: #61766c;
+  line-height: 1.35;
+}
+
+.travel-price-intelligence details {
+  margin-top: 7px;
+}
+
+.travel-price-intelligence summary {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #397c62;
+  font-weight: 900;
+  list-style: none;
+}
+
+.travel-price-intelligence summary::-webkit-details-marker {
+  display: none;
+}
+
+.travel-price-intelligence dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin: 7px 0 4px;
+}
+
+.travel-price-intelligence dl div {
+  display: grid;
+  gap: 2px;
+}
+
+.travel-price-intelligence dt {
+  color: #78877f;
+}
+
+.travel-price-intelligence dd {
+  margin: 0;
+  font-weight: 900;
+}
+
+.travel-price-intelligence > details > small {
+  color: #8a958f;
+}
+
+.travel-price-intelligence.price-wait {
+  border-color: #ecdcae;
+  background: #fff9e9;
+}
+
 .travel-option-hotel > span {
   min-width: 0;
   flex: 1;
@@ -2325,6 +2433,7 @@ button:disabled {
   font-weight: 900;
 }
 
+.decision-progress,
 .simulation-note {
   margin: 0;
   color: #397c62;

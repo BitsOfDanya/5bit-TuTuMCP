@@ -226,15 +226,19 @@ test("renders MCP search results as external booking links", async () => {
   expect(checkout).toHaveAttribute("target", "_blank");
   expect(screen.queryByText("Перейти к вариантам")).not.toBeInTheDocument();
 
-  await user.click(within(card).getByRole("button", {
+  const priceButton = within(card).getByRole("button", {
     name: "Отслеживать цену варианта Москва — Казань",
-  }));
-  const tracker = await screen.findByRole("dialog", { name: "Отслеживание цены" });
-  expect(within(tracker).getByText("Цена отслеживается")).toBeInTheDocument();
+  });
+  await user.click(priceButton);
+  expect(await within(card).findByText("Наблюдаем за ценой")).toBeInTheDocument();
+  expect(within(card).getByText(/Нужно больше наблюдений/)).toBeInTheDocument();
   expect(trackingRequest).toMatchObject({
     status: "success",
     trip_spec: { origin: "Москва", destination: "Казань" },
   });
+  await user.click(priceButton);
+  const tracker = await screen.findByRole("dialog", { name: "Отслеживание цены" });
+  expect(within(tracker).getByText("Цена отслеживается")).toBeInTheDocument();
 });
 
 test("accepts a round trip and runs a non-mutating What-if simulation", async () => {
@@ -311,7 +315,7 @@ test("accepts a round trip and runs a non-mutating What-if simulation", async ()
       return HttpResponse.json({ ...body, updated_at: "2026-08-19T12:00:00Z" });
     }),
     http.post("/api/v1/trips/current/what-if", async ({ request }) => {
-      expect(await request.json()).toEqual({ message: "А если вернуться до 10 утра?" });
+      expect(await request.json()).toEqual({ message: "А если вернуться раньше?" });
       return HttpResponse.json({
         kind: "what_if",
         result: {
@@ -349,9 +353,7 @@ test("accepts a round trip and runs a non-mutating What-if simulation", async ()
   await user.click(await screen.findByRole("button", { name: "Выбрать поездку" }));
   await waitFor(() => expect(savedTrips).toBe(1));
 
-  await user.click(screen.getByRole("tab", { name: /А что если/ }));
-  await user.type(screen.getByLabelText("Какой сценарий сравнить?"), "А если вернуться до 10 утра?");
-  await user.click(screen.getByRole("button", { name: "Сравнить" }));
+  await user.click(screen.getByRole("button", { name: "А если раньше?" }));
 
   expect(await screen.findByText("Вернуться до 10 утра")).toBeInTheDocument();
   expect(screen.getByText(/Текущий вариант не меняю/)).toBeInTheDocument();

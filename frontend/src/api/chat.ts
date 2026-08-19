@@ -105,6 +105,15 @@ export interface SearchOption {
   preference_reasons?: string[];
   rank_before?: number | null;
   rank_after?: number | null;
+  price_intelligence?: {
+    status: "COLLECTING_DATA" | "BUY_NOW" | "WAIT" | "GOOD_VALUE";
+    message: string;
+    current_price: number;
+    minimum_price: number;
+    average_price: number;
+    difference_from_min: number;
+    observations: number;
+  } | null;
 }
 
 export interface AgentChatResponse {

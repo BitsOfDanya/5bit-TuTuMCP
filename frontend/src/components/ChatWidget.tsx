@@ -2,7 +2,6 @@ import {
   ArrowUpRight,
   Check,
   ChevronDown,
-  FlaskConical,
   RefreshCw,
   SendHorizontal,
   Sparkles,
@@ -97,6 +96,7 @@ export function ChatWidget({
   const [failedMessage, setFailedMessage] = useState("");
   const [trackerOption, setTrackerOption] = useState<SearchOption | null>(null);
   const [tracking, setTracking] = useState<TripTracking | null>(null);
+  const [trackedOptionId, setTrackedOptionId] = useState<string | null>(null);
   const [trackerError, setTrackerError] = useState("");
   const [isCreatingTracking, setCreatingTracking] = useState(false);
   const [isRefreshingTracking, setRefreshingTracking] = useState(false);
@@ -108,7 +108,6 @@ export function ChatWidget({
   const [acceptingOptionId, setAcceptingOptionId] = useState<string | null>(null);
   const [groupCandidates, setGroupCandidates] = useState<SearchOption[]>([]);
   const [decisionMode, setDecisionMode] = useState<DecisionMode>("rescue");
-  const [decisionDraft, setDecisionDraft] = useState("");
   const [decisionResult, setDecisionResult] = useState<DecisionResult | null>(null);
   const [decisionError, setDecisionError] = useState("");
   const [isDecisionRunning, setDecisionRunning] = useState(false);
@@ -202,22 +201,43 @@ export function ChatWidget({
   }
 
   async function startTracking(option: SearchOption) {
+    if (tracking && trackedOptionId === option.id) {
+      setTrackerOption(option);
+      return;
+    }
     const payload = option.tracking_payload ?? directTrackingPayload(option);
     if (!payload) {
       return;
     }
-    setTrackerOption(option);
     setTracking(null);
+    setTrackedOptionId(option.id);
     setTrackerError("");
     setCreatingTracking(true);
     try {
-      setTracking(await createTracking(payload));
-    } catch (requestError) {
-      setTrackerError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Не удалось включить отслеживание цены.",
+      const nextTracking = await createTracking(payload);
+      setTracking(nextTracking);
+      const enrich = (options: SearchOption[]) =>
+        withPriceIntelligence(options, option.id, nextTracking);
+      setMessages((current) =>
+        current.map((message) =>
+          message.options?.length
+            ? { ...message, options: enrich(message.options) }
+            : message,
+        ),
       );
+      setLatestOptions((current) => {
+        const updated = enrich(current);
+        latestOptionsRef.current = updated;
+        return updated;
+      });
+      setGroupCandidates((current) => enrich(current));
+      onNotify("Рекомендация по цене добавлена в карточку.");
+    } catch (requestError) {
+      const message = requestError instanceof Error
+        ? requestError.message
+        : "Не удалось проверить цену.";
+      setTrackerError(message);
+      onNotify(message);
     } finally {
       setCreatingTracking(false);
     }
@@ -353,7 +373,6 @@ export function ChatWidget({
     }
     onExperienceChange("chat");
     setDecisionMode(mode);
-    setDecisionDraft("");
     setDecisionError("");
     setDecisionRunning(true);
     try {
@@ -362,7 +381,7 @@ export function ChatWidget({
     } catch (requestError) {
       setDecisionResult(null);
       setDecisionError(
-        requestError instanceof Error ? requestError.message : "Decision Intelligence недоступен.",
+        requestError instanceof Error ? requestError.message : "Помощник по поездке сейчас недоступен.",
       );
     } finally {
       setDecisionRunning(false);
@@ -390,11 +409,6 @@ export function ChatWidget({
     void submitMessage(draft);
   }
 
-  function handleDecisionSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void runDecision(decisionMode, decisionDraft);
-  }
-
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -402,9 +416,7 @@ export function ChatWidget({
     }
   }
 
-  const showDecisionWorkspace = Boolean(
-    acceptedOptionId || decisionResult || decisionError || isDecisionRunning,
-  );
+  const showDecisionWorkspace = Boolean(decisionResult || decisionError || isDecisionRunning);
 
   return (
     <>
@@ -553,13 +565,9 @@ export function ChatWidget({
                   {showDecisionWorkspace ? (
                     <DecisionWorkspace
                       mode={decisionMode}
-                      draft={decisionDraft}
                       result={decisionResult}
                       error={decisionError}
                       isRunning={isDecisionRunning}
-                      onModeChange={setDecisionMode}
-                      onDraftChange={setDecisionDraft}
-                      onSubmit={handleDecisionSubmit}
                       onApply={(candidate) => void applyCandidate(candidate)}
                     />
                   ) : null}
@@ -675,6 +683,27 @@ function directTrackingPayload(option: SearchOption): TrackingPayload | null {
   };
 }
 
+function withPriceIntelligence(
+  options: SearchOption[],
+  optionId: string,
+  tracking: TripTracking,
+): SearchOption[] {
+  const insight = {
+    status: tracking.recommendation.status,
+    message: tracking.recommendation.message,
+    current_price: tracking.summary.current_price,
+    minimum_price: tracking.summary.minimum_price,
+    average_price: tracking.summary.average_price,
+    difference_from_min: tracking.summary.difference_from_min,
+    observations: tracking.history.length,
+  };
+  return options.map((option) =>
+    option.id === optionId
+      ? { ...option, price_intelligence: insight }
+      : option,
+  );
+}
+
 function isTransportMode(
   mode: string,
 ): mode is "train" | "flight" | "bus" | "suburban_train" {
@@ -700,71 +729,29 @@ function ConstraintSummary({ trip }: { trip: TripDetails }) {
 
 interface DecisionWorkspaceProps {
   mode: DecisionMode;
-  draft: string;
   result: DecisionResult | null;
   error: string;
   isRunning: boolean;
-  onModeChange: (mode: DecisionMode) => void;
-  onDraftChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onApply: (candidate: DecisionCandidate) => void;
 }
 
 function DecisionWorkspace({
   mode,
-  draft,
   result,
   error,
   isRunning,
-  onModeChange,
-  onDraftChange,
-  onSubmit,
   onApply,
 }: DecisionWorkspaceProps) {
+  const title = mode === "rescue" ? "Проверяю изменение планов" : "Сравниваю сценарий";
   return (
-    <section className="decision-workspace" aria-label="Изменение принятой поездки">
+    <section className="decision-workspace" aria-label="Помощь по принятой поездке">
       <header>
-        <div><Sparkles size={17} aria-hidden="true" /><strong>Decision Intelligence</strong></div>
+        <div><Sparkles size={17} aria-hidden="true" /><strong>{title}</strong></div>
         <span>Текущая поездка сохранена</span>
       </header>
-      <div className="decision-tabs" role="tablist" aria-label="Режим изменения">
-        <button
-          className={mode === "rescue" ? "selected" : ""}
-          type="button"
-          role="tab"
-          aria-selected={mode === "rescue"}
-          onClick={() => onModeChange("rescue")}
-        >
-          <RefreshCw size={14} aria-hidden="true" /> Планы поменялись
-        </button>
-        <button
-          className={mode === "what_if" ? "selected" : ""}
-          type="button"
-          role="tab"
-          aria-selected={mode === "what_if"}
-          onClick={() => onModeChange("what_if")}
-        >
-          <FlaskConical size={14} aria-hidden="true" /> А что если…
-        </button>
-      </div>
-      <form onSubmit={onSubmit}>
-        <label htmlFor="decision-message">
-          {mode === "rescue" ? "Что обязательно нужно изменить?" : "Какой сценарий сравнить?"}
-        </label>
-        <div>
-          <input
-            id="decision-message"
-            value={draft}
-            onChange={(event) => onDraftChange(event.target.value)}
-            placeholder={mode === "rescue" ? "Нужно вернуться до 8 утра" : "А если вернуться до 10?"}
-          />
-          <button type="submit" disabled={isRunning || !draft.trim()}>
-            {isRunning ? "Сравниваю…" : mode === "rescue" ? "Спасти поездку" : "Сравнить"}
-          </button>
-        </div>
-      </form>
+      {isRunning ? <p className="decision-progress" role="status">Ищу вариант, который изменит только необходимое…</p> : null}
       {mode === "what_if" && (isRunning || result) ? (
-        <p className="simulation-note">Текущий вариант не меняю — это отдельная симуляция.</p>
+        <p className="simulation-note">Текущий вариант не меняю — просто сравниваю сценарий.</p>
       ) : null}
       {error ? <p className="decision-error" role="alert">{error}</p> : null}
       {result ? <DecisionResults result={result} onApply={onApply} /> : null}
