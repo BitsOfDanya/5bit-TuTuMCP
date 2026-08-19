@@ -6,6 +6,7 @@
 	smoke-rescue \
 	smoke-fallback \
 	smoke-preferences \
+	smoke-group-preferences \
 	smoke-whatif \
 	smoke-prod \
 	up \
@@ -31,7 +32,12 @@ test-whatif:
 	python -m pytest tests/test_whatif.py tests/test_whatif_api.py -q
 
 
-smoke: smoke-rescue smoke-fallback smoke-preferences smoke-whatif
+smoke: \
+	smoke-rescue \
+	smoke-fallback \
+	smoke-preferences \
+	smoke-group-preferences \
+	smoke-whatif
 
 
 smoke-rescue:
@@ -44,6 +50,10 @@ smoke-fallback:
 
 smoke-preferences:
 	python -m scripts.smoke_preferences
+
+
+smoke-group-preferences:
+	python -m scripts.smoke_group_preferences
 
 
 smoke-whatif:
