@@ -52,8 +52,6 @@ def validate_trip(trip: TripDetails) -> dict[str, Any]:
 def next_travel_action(trip: TripDetails) -> AgentNextAction:
     if missing_trip_fields(trip):
         return AgentNextAction.COLLECT_TRIP_DETAILS
-    if trip.service_type is TravelService.FLIGHT and trip.is_international is True:
-        return AgentNextAction.UPLOAD_PASSENGER_DOCUMENTS
     return AgentNextAction.REDIRECT_TO_SEARCH
 
 
@@ -94,6 +92,16 @@ def determine_next_action(trip: ToolTripDetails) -> dict[str, str]:
 
 
 @tool
-def build_search_redirect(trip: ToolTripDetails) -> dict[str, str]:
-    """Build a relative internal search URL for a complete normalized trip."""
-    return {"redirect_url": search_redirect_url(trip.to_domain())}
+def build_search_redirect(trip: ToolTripDetails) -> dict[str, Any]:
+    """Build a relative URL, or report fields still needed without failing the agent run."""
+    domain_trip = trip.to_domain()
+    missing_fields = missing_trip_fields(domain_trip)
+    if missing_fields:
+        return {
+            "status": "incomplete",
+            "missing_fields": missing_fields,
+        }
+    return {
+        "status": "ready",
+        "redirect_url": search_redirect_url(domain_trip),
+    }

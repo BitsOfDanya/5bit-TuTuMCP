@@ -5,7 +5,7 @@ import pytest
 from langchain_core.messages import ToolMessage
 
 from app.agent.graph import build_travel_workflow
-from app.agent.tools.travel import validate_trip_details
+from app.agent.tools.travel import build_search_redirect, validate_trip_details
 from app.domain.travel import (
     AgentTurn,
     PlanAction,
@@ -94,3 +94,21 @@ def test_tool_schema_is_strict_for_openai() -> None:
     trip_schema = schema["$defs"]["ToolTripDetails"]
     assert trip_schema["additionalProperties"] is False
     assert set(trip_schema["required"]) == set(trip_schema["properties"])
+
+
+def test_redirect_tool_reports_missing_fields_without_raising() -> None:
+    trip = TripDetails(
+        service_type=TravelService.TRAIN,
+        origin="Москва",
+        destination="Казань",
+        start_date=date(2026, 9, 1),
+        passengers=1,
+        budget=20_000,
+    )
+
+    result = build_search_redirect.invoke({"trip": trip.model_dump(mode="json")})
+
+    assert result == {
+        "status": "incomplete",
+        "missing_fields": ["preferred_time"],
+    }

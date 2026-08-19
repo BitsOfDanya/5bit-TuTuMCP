@@ -36,7 +36,8 @@ def test_alembic_migration_builds_current_schema(
         "messages",
         "user",
     } <= tables
-    assert revision == ("20260819_0002",)
+    assert "bookings" not in tables
+    assert revision == ("20260819_0004",)
 
     command.downgrade(config, "base")
     with sqlite3.connect(database_path) as connection:

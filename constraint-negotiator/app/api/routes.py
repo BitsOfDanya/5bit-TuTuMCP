@@ -18,7 +18,9 @@ from app.api.mapper import (
     to_public_result,
 )
 from app.api.schemas import (
+    ProductSearchRequest,
     PublicNegotiationResult,
+    PublicProductSearchResult,
 )
 from app.graph.builder import (
     negotiator_graph,
@@ -29,12 +31,15 @@ from app.models.relaxation import (
 from app.models.trip import (
     TripSpec,
 )
+from app.search.products import ProductSearchService
 
 
 router = APIRouter(
     prefix="/api/v1/negotiator",
     tags=["negotiator"],
 )
+
+product_search = ProductSearchService()
 
 
 class FromSpecRequest(BaseModel):
@@ -162,6 +167,27 @@ async def negotiate_from_text_public(
     return to_public_result(
         result
     )
+
+
+@router.post(
+    "/products/search",
+    response_model=PublicProductSearchResult,
+)
+async def search_products(
+    request: ProductSearchRequest,
+) -> PublicProductSearchResult:
+    try:
+        return await product_search.search(request)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
 
 
 # ---------------------------------------------------------

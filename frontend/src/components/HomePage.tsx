@@ -18,6 +18,7 @@ interface HomePageProps {
   user: User | null;
   onLogin: () => void;
   onLogout: () => void;
+  onOpenAssistant: () => void;
   onStub: (message: string) => void;
 }
 
@@ -108,7 +109,13 @@ const features = [
   },
 ] as const;
 
-export function HomePage({ user, onLogin, onLogout, onStub }: HomePageProps) {
+export function HomePage({
+  user,
+  onLogin,
+  onLogout,
+  onOpenAssistant,
+  onStub,
+}: HomePageProps) {
   function handleNewsletter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onStub("Спасибо! Подписка пока работает как демонстрация");
@@ -151,7 +158,7 @@ export function HomePage({ user, onLogin, onLogout, onStub }: HomePageProps) {
             </aside>
           </div>
 
-          <SearchPanel onStub={onStub} />
+          <SearchPanel onOpenAssistant={onOpenAssistant} onStub={onStub} />
         </div>
       </section>
 

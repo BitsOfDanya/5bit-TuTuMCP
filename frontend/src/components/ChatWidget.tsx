@@ -17,7 +17,6 @@ import { TravelOptionCards } from "./TravelOptionCards";
 const ChatMarkdown = lazy(() =>
   import("./ChatMarkdown").then((module) => ({ default: module.ChatMarkdown })),
 );
-
 const GUEST_USER_KEY = "tutumcp.chat.guest-user-id.v1";
 const INITIAL_MESSAGE = [
   "Привет! Я **Джарвелл**, ваш помощник по путешествиям.",
@@ -41,10 +40,11 @@ interface ChatMessage {
 
 interface ChatWidgetProps {
   user: User | null;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
 }
 
-export function ChatWidget({ user }: ChatWidgetProps) {
-  const [isOpen, setOpen] = useState(false);
+export function ChatWidget({ user, isOpen, onOpenChange }: ChatWidgetProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => [createGreeting()]);
   const [draft, setDraft] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export function ChatWidget({ user }: ChatWidgetProps) {
   const [error, setError] = useState("");
   const [failedMessage, setFailedMessage] = useState("");
   const [guestUserId] = useState(getOrCreateGuestUserId);
-  const launcherRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -69,6 +69,8 @@ export function ChatWidget({ user }: ChatWidgetProps) {
     }
 
     const previousOverflow = document.body.style.overflow;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = "hidden";
     window.requestAnimationFrame(() => textareaRef.current?.focus());
 
@@ -83,7 +85,7 @@ export function ChatWidget({ user }: ChatWidgetProps) {
       }
 
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), a[href], textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
       const first = focusable.item(0);
       const last = focusable.item(focusable.length - 1);
@@ -102,7 +104,7 @@ export function ChatWidget({ user }: ChatWidgetProps) {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, onOpenChange]);
 
   useEffect(() => {
     if (isOpen) {
@@ -111,12 +113,12 @@ export function ChatWidget({ user }: ChatWidgetProps) {
   }, [isOpen, isSending, messages]);
 
   function openChat() {
-    setOpen(true);
+    onOpenChange(true);
   }
 
   function closeChat() {
-    setOpen(false);
-    window.requestAnimationFrame(() => launcherRef.current?.focus());
+    onOpenChange(false);
+    window.requestAnimationFrame(() => previousFocusRef.current?.focus());
   }
 
   async function submitMessage(rawMessage: string) {
@@ -190,7 +192,6 @@ export function ChatWidget({ user }: ChatWidgetProps) {
   return (
     <>
       <button
-        ref={launcherRef}
         className={`chat-launcher${isOpen ? " chat-launcher-hidden" : ""}`}
         type="button"
         aria-label="Открыть чат с Джарвеллом"

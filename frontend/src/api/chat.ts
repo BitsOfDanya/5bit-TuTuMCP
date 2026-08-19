@@ -38,8 +38,8 @@ export interface SearchOption {
   explanation: string | null;
   total_price: number;
   currency: string;
-  outbound: SearchSegment;
-  inbound: SearchSegment;
+  outbound: SearchSegment | null;
+  inbound: SearchSegment | null;
   hotel: SearchHotel | null;
   changes: string[];
   action_url: string | null;

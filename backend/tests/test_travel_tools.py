@@ -25,7 +25,7 @@ def test_tools_keep_incomplete_trip_in_collection_flow() -> None:
         search_redirect_url(trip)
 
 
-def test_tools_route_international_flight_to_documents() -> None:
+def test_tools_search_international_flight_before_documents() -> None:
     trip = TripDetails(
         service_type=TravelService.FLIGHT,
         origin="Москва",
@@ -37,7 +37,7 @@ def test_tools_route_international_flight_to_documents() -> None:
         is_international=True,
     )
 
-    assert next_travel_action(trip) is AgentNextAction.UPLOAD_PASSENGER_DOCUMENTS
+    assert next_travel_action(trip) is AgentNextAction.REDIRECT_TO_SEARCH
 
 
 def test_search_redirect_is_built_from_normalized_trip() -> None:

@@ -28,8 +28,11 @@ class TutuSearchNormalizer:
     ) -> list[TransportSegment]:
 
         raw_variants = payload.get(
-            "variants",
-            []
+            "offers",
+            payload.get(
+                "variants",
+                [],
+            ),
         )
 
         if not isinstance(

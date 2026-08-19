@@ -17,9 +17,10 @@ from app.domain.travel import AgentTurn, TravelPlan, TripDetails
 
 
 class TravelWorkflowNodes:
-    def __init__(self, planner: Any, executor: Any) -> None:
+    def __init__(self, planner: Any, executor: Any, search_client: Any | None = None) -> None:
         self._planner = planner
         self._executor = executor
+        self._search_client = search_client
 
     async def plan(self, state: TravelWorkflowState) -> dict[str, TravelPlan]:
         current_trip = state.get("current_trip", TripDetails())
@@ -64,7 +65,7 @@ class TravelWorkflowNodes:
             "constraint_result": tool_payloads.get("negotiate_constraints", {}),
         }
 
-    def finalize(self, state: TravelWorkflowState) -> dict[str, Any]:
+    async def finalize(self, state: TravelWorkflowState) -> dict[str, Any]:
         turn = state["structured_response"]
         trip = merge_trip_details(state.get("current_trip", TripDetails()), turn.trip)
         tool_input = {"trip": trip.model_dump(mode="json")}
@@ -79,6 +80,22 @@ class TravelWorkflowNodes:
         if next_action == "redirect_to_search":
             redirect_url = build_search_redirect.invoke(tool_input)["redirect_url"]
             tools_used.append(build_search_redirect.name)
+        constraint_result = state.get("constraint_result") or {}
+        if (
+            not validation["missing_fields"]
+            and self._search_client is not None
+            and not constraint_result.get("options")
+        ):
+            constraint_result = await self._search_client.negotiate(trip)
+            tools_used.append("search_travel_options")
+
+        tool_statuses = state.get("tool_statuses", {})
+        if constraint_result:
+            tool_statuses = {
+                **tool_statuses,
+                "search_travel_options": str(constraint_result.get("status", "unknown")),
+            }
+
         return {
             "structured_response": AgentTurn(
                 assistant_message=turn.assistant_message,
@@ -88,11 +105,8 @@ class TravelWorkflowNodes:
             "next_action": next_action,
             "redirect_url": redirect_url,
             "tools_used": list(dict.fromkeys(tools_used)),
-            "tool_statuses": state.get("tool_statuses", {}),
-            "search_options": build_search_options(
-                state.get("constraint_result"),
-                redirect_url,
-            ),
+            "tool_statuses": tool_statuses,
+            "search_options": build_search_options(constraint_result, redirect_url),
         }
 
 

@@ -42,8 +42,8 @@ class SearchOption(BaseModel):
     explanation: str | None = None
     total_price: int = Field(ge=0)
     currency: str = "RUB"
-    outbound: SearchSegment
-    inbound: SearchSegment
+    outbound: SearchSegment | None = None
+    inbound: SearchSegment | None = None
     hotel: SearchHotel | None = None
     changes: list[str] = Field(default_factory=list)
     action_url: str | None = None

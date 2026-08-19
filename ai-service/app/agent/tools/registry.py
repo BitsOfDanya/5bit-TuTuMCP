@@ -14,7 +14,7 @@ from app.integrations.constraint_negotiator.client import ConstraintNegotiatorCl
 def build_travel_tools(client: ConstraintNegotiatorClient) -> list[BaseTool]:
     @tool
     async def negotiate_constraints(trip: ToolTripDetails) -> dict[str, Any]:
-        """Find real journeys or constraint relaxations for a complete round trip."""
+        """Find real Tutu options for train, flight, bus, or hotel searches."""
         return await client.negotiate(trip.to_domain())
 
     return [

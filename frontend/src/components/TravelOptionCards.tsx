@@ -52,8 +52,8 @@ function TravelOptionCard({ option }: { option: SearchOption }) {
       {option.explanation ? <p className="travel-option-explanation">{option.explanation}</p> : null}
 
       <div className="travel-option-segments">
-        <SegmentRow label="Туда" segment={option.outbound} />
-        <SegmentRow label="Обратно" segment={option.inbound} />
+        {option.outbound ? <SegmentRow label="Туда" segment={option.outbound} /> : null}
+        {option.inbound ? <SegmentRow label="Обратно" segment={option.inbound} /> : null}
       </div>
 
       {option.hotel ? (
@@ -75,7 +75,9 @@ function TravelOptionCard({ option }: { option: SearchOption }) {
       ) : null}
 
       <div className="travel-option-action">
-        <span>{href ? "Посмотреть на Туту" : "Ссылка пока недоступна"}</span>
+        <span>
+          {href ? "Перейти к оформлению" : "Ссылка пока недоступна"}
+        </span>
         {href ? <ExternalLink size={14} aria-hidden="true" /> : null}
       </div>
     </>

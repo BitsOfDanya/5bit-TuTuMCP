@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 .envrc
 .direnv/
 *.pem
@@ -22,7 +23,9 @@ dist/
 .nox/
 .hypothesis/
 .venv/
+.venv-*/
 venv/
+venv/linux/
 env/
 
 # Local databases
@@ -34,6 +37,7 @@ env/
 backend/.data/
 ai-service/.data/
 .local/
+backups/
 
 # Node / frontend
 node_modules/
@@ -65,5 +69,6 @@ htmlcov/
 
 # OS metadata
 .DS_Store
+._*
 Thumbs.db
 Desktop.ini

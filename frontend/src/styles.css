@@ -1405,9 +1405,9 @@ button:disabled {
   inset: 0;
   z-index: 130;
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
   background: rgb(8 4 46 / 43%);
   backdrop-filter: blur(4px);
   animation: chat-backdrop-in 160ms ease-out;
@@ -1415,8 +1415,8 @@ button:disabled {
 
 .chat-dialog {
   display: grid;
-  width: min(430px, 100%);
-  height: min(700px, calc(100vh - 44px));
+  width: min(900px, 100%);
+  height: min(780px, calc(100dvh - 64px));
   overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr) auto;
   border: 1px solid rgb(255 255 255 / 60%);
@@ -1636,6 +1636,8 @@ button:disabled {
     border-color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms ease;
+  width: 100%;
+  text-align: left;
 }
 
 .travel-option-card[href]:hover {

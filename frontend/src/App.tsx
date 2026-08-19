@@ -11,6 +11,7 @@ import type { AuthSession, User } from "./types";
 export function App() {
   const queryClient = useQueryClient();
   const [isAuthOpen, setAuthOpen] = useState(false);
+  const [isChatOpen, setChatOpen] = useState(false);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
   const sessionQuery = useQuery({
@@ -59,6 +60,7 @@ export function App() {
         user={user}
         onLogin={() => setAuthOpen(true)}
         onLogout={handleLogout}
+        onOpenAssistant={() => setChatOpen(true)}
         onStub={notify}
       />
       <AuthModal
@@ -67,7 +69,12 @@ export function App() {
         onAuthenticated={handleAuthenticated}
         onStub={notify}
       />
-      <ChatWidget key={user?.id ?? "guest"} user={user} />
+      <ChatWidget
+        key={user?.id ?? "guest"}
+        user={user}
+        isOpen={isChatOpen}
+        onOpenChange={setChatOpen}
+      />
       {toast ? (
         <div className="toast" role="status">
           <span>{toast}</span>

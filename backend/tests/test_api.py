@@ -166,7 +166,6 @@ class FakeAIServiceClient:
             manual_review_required=bool(missing or document.warnings),
         )
 
-
 @pytest.fixture
 def client() -> TestClient:
     asyncio.run(initialize_database())
@@ -245,7 +244,7 @@ def test_conversation_is_isolated_by_user(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-def test_international_flight_routes_to_document_extraction(client: TestClient) -> None:
+def test_international_flight_searches_before_document_extraction(client: TestClient) -> None:
     chat = client.post(
         "/api/v1/agent/chat",
         json={
@@ -254,7 +253,7 @@ def test_international_flight_routes_to_document_extraction(client: TestClient) 
         },
     )
     assert chat.status_code == 200
-    assert chat.json()["next_action"] == "upload_passenger_documents"
+    assert chat.json()["next_action"] == "redirect_to_search"
     session_id = chat.json()["session_id"]
 
     extraction = client.post(

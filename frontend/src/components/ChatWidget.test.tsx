@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { useState } from "react";
 import { axe } from "vitest-axe";
 import { beforeEach, expect, test } from "vitest";
 
@@ -14,11 +15,28 @@ const authenticatedUser: User = {
   display_name: "Traveller",
 };
 
-beforeEach(() => window.localStorage.clear());
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
+function renderChat() {
+  return render(<ChatWidgetHarness />);
+}
+
+function ChatWidgetHarness() {
+  const [isOpen, setOpen] = useState(false);
+  return (
+    <ChatWidget
+      user={authenticatedUser}
+      isOpen={isOpen}
+      onOpenChange={setOpen}
+    />
+  );
+}
 
 test("opens the chat and restores focus after Escape", async () => {
   const user = userEvent.setup();
-  render(<ChatWidget user={authenticatedUser} />);
+  renderChat();
 
   const launcher = screen.getByRole("button", { name: "Открыть чат с Джарвеллом" });
   await user.click(launcher);
@@ -56,7 +74,7 @@ test("renders Markdown responses and continues the backend session", async () =>
     }),
   );
 
-  render(<ChatWidget user={authenticatedUser} />);
+  renderChat();
   await user.click(screen.getByRole("button", { name: "Открыть чат с Джарвеллом" }));
 
   const composer = screen.getByLabelText("Сообщение Джарвеллу");
@@ -82,7 +100,7 @@ test("renders Markdown responses and continues the backend session", async () =>
   });
 });
 
-test("renders MCP search results as clickable inline cards", async () => {
+test("renders MCP search results as external booking links", async () => {
   const user = userEvent.setup();
   server.use(
     http.post("/api/v1/agent/chat", () =>
@@ -118,19 +136,7 @@ test("renders MCP search results as clickable inline cards", async () => {
               carrier: "ФПК",
               voyage_no: "002Э",
             },
-            inbound: {
-              mode: "train",
-              origin: "Казань",
-              destination: "Москва",
-              departure: "2026-09-05T18:00:00+03:00",
-              arrival: "2026-09-06T05:30:00+03:00",
-              price: 9_400,
-              currency: "RUB",
-              duration_minutes: 690,
-              transfers: 0,
-              carrier: "ФПК",
-              voyage_no: "001Г",
-            },
+            inbound: null,
             hotel: null,
             changes: [],
             action_url: "https://www.tutu.ru/poezda/view_d.php?np=002E",
@@ -140,7 +146,7 @@ test("renders MCP search results as clickable inline cards", async () => {
     ),
   );
 
-  render(<ChatWidget user={authenticatedUser} />);
+  renderChat();
   await user.click(screen.getByRole("button", { name: "Открыть чат с Джарвеллом" }));
   await user.type(screen.getByLabelText("Сообщение Джарвеллу"), "Покажи варианты");
   await user.click(screen.getByRole("button", { name: "Отправить сообщение" }));
@@ -148,21 +154,21 @@ test("renders MCP search results as clickable inline cards", async () => {
   const card = await screen.findByRole("link", {
     name: /открыть вариант: Москва — Казань/i,
   });
+  expect(within(card).getByText("18 900 ₽")).toBeInTheDocument();
+  expect(card).toHaveTextContent("10:00");
+  expect(card).toHaveTextContent("21:30");
+  expect(card).toHaveTextContent("Перейти к оформлению");
   expect(card).toHaveAttribute(
     "href",
     "https://www.tutu.ru/poezda/view_d.php?np=002E",
   );
   expect(card).toHaveAttribute("target", "_blank");
-  expect(within(card).getByText("18 900 ₽")).toBeInTheDocument();
-  expect(card).toHaveTextContent("10:00");
-  expect(card).toHaveTextContent("21:30");
-  expect(within(card).getAllByText("Без пересадок")).toHaveLength(2);
   expect(screen.queryByText("Перейти к вариантам")).not.toBeInTheDocument();
 });
 
 test("chat dialog has no automated accessibility violations", async () => {
   const user = userEvent.setup();
-  const { container } = render(<ChatWidget user={authenticatedUser} />);
+  const { container } = renderChat();
 
   await user.click(screen.getByRole("button", { name: "Открыть чат с Джарвеллом" }));
   await screen.findByText(/ваш помощник по путешествиям/i);
