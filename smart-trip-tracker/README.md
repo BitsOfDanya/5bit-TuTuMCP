@@ -5,10 +5,10 @@
 
 ## Что входит в минимальную версию
 
-- структурированный TripIntent;
-- перелёт туда-обратно + отель;
-- публичный Tutu MCP adapter (Streamable HTTP, без авторизации);
-- реальный поиск через Tutu MCP по умолчанию;
+- вход в формате PublicNegotiationResult сервиса constraint-negotiator;
+- импорт транспорта туда-обратно и опционального отеля;
+- поддержка статусов success и negotiation_required;
+- повторный импорт того же формата как новой точки истории;
 - воспроизводимый demo-provider для локальной работы без сети;
 - ограниченный Trip Builder (до 5 перелётов × 5 отелей);
 - детерминированный Trip Score;
@@ -39,6 +39,28 @@
 API-ключ для Tutu MCP не нужен. Актуальный endpoint:
 https://mcp.tutu.ru/mcp.
 
+## Связка с Constraint Negotiator
+
+1. Получите результат из одного из публичных endpoint:
+
+       POST http://127.0.0.1:8010/api/v1/negotiator/from-text/public
+       POST http://127.0.0.1:8010/api/v1/negotiator/from-spec/public
+
+2. Передайте полученный JSON без преобразований:
+
+       POST http://127.0.0.1:8001/api/v1/trips
+
+   Для success выбирается самая дешёвая поездка из journeys. Для
+   negotiation_required выбирается альтернатива с минимальным score, а её
+   new_trip_spec становится параметрами отслеживания.
+
+3. Для новой реальной точки повторите поиск в Constraint Negotiator:
+
+       POST http://127.0.0.1:8001/api/v1/trips/{tracking_id}/observations
+
+Результат no_options не создаёт отслеживание и возвращает 422.
+
+
 Для полностью локальной работы без сетевых запросов установите
 `TRIP_PROVIDER=demo`.
 
@@ -60,15 +82,16 @@ https://mcp.tutu.ru/mcp.
     GET    /api/v1/trips
     GET    /api/v1/trips/{id}
     POST   /api/v1/trips/{id}/refresh
+    POST   /api/v1/trips/{id}/observations
     POST   /api/v1/trips/{id}/simulate?scenario=drop|spike
     DELETE /api/v1/trips/{id}
 
 
 ## Как увидеть динамику
 
-1. Создайте маршрут — это выполнит реальный поиск в Tutu MCP.
-2. Нажмите «Цена снизилась на 7%» — появится новая точка и `BUY_NOW`.
-3. Нажмите «Цена выросла на 20%» — график пойдёт вверх и появится `WAIT`.
+1. Вставьте JSON результата Constraint Negotiator и создайте отслеживание.
+2. Вставьте результат повторного поиска и нажмите «Добавить как новую точку».
+3. Для демонстрации используйте кнопки падения или роста цены.
 
 Сценарии `drop` и `spike` не вызывают MCP и не подменяют реальный refresh.
 Они воспроизводимо изменяют последнюю сохранённую цену. Ошибки валидации,
@@ -88,8 +111,8 @@ https://mcp.tutu.ru/mcp.
 
 - нет авторизации и пользовательской изоляции;
 - нет scheduler и LLM explanation;
-- пока поддерживается только round-trip avia + hotel;
-- реальные предложения зависят от доступности публичного Tutu MCP.
+- поддерживается round-trip транспорт, отель опционален;
+- реальные предложения формирует Constraint Negotiator через Tutu MCP.
 
 Следующий этап: scheduler, уведомления, привязка к авторизации и интеграция
 с основной страницей. При объединении можно заменить SQLite на PostgreSQL/Alembic.

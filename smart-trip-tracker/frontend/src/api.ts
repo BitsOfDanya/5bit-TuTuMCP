@@ -1,4 +1,8 @@
-import type { TrackingList, TripIntent, TripTracking } from "./types";
+import type {
+  NegotiationResult,
+  TrackingList,
+  TripTracking,
+} from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -19,10 +23,23 @@ export function listTrackings(): Promise<TrackingList> {
   return request<TrackingList>("/api/v1/trips");
 }
 
-export function createTracking(intent: TripIntent): Promise<TripTracking> {
+export function createTracking(result: NegotiationResult): Promise<TripTracking> {
   return request<TripTracking>("/api/v1/trips", {
     method: "POST",
-    body: JSON.stringify(intent),
+    body: JSON.stringify(result),
+  });
+}
+
+export function recordNegotiation({
+  id,
+  result,
+}: {
+  id: string;
+  result: NegotiationResult;
+}): Promise<TripTracking> {
+  return request<TripTracking>(`/api/v1/trips/${id}/observations`, {
+    method: "POST",
+    body: JSON.stringify(result),
   });
 }
 

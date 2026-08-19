@@ -1,3 +1,62 @@
+export interface NegotiatorTripSpec {
+  origin: string;
+  destination: string;
+  outbound_date: string;
+  return_date: string;
+  travelers: number;
+  budget: number | null;
+  max_transfers: number | null;
+  [key: string]: unknown;
+}
+
+export interface NegotiatorTransportSegment {
+  mode: "train" | "flight" | "bus" | "suburban_train";
+  origin: string;
+  destination: string;
+  departure: string;
+  arrival: string;
+  price: number;
+  duration_minutes: number | null;
+  transfers: number;
+  carrier: string | null;
+  booking_url: string | null;
+  [key: string]: unknown;
+}
+
+export interface NegotiatorHotel {
+  name: string;
+  price: number;
+  rating: number | null;
+  booking_url: string | null;
+  [key: string]: unknown;
+}
+
+export interface NegotiatorJourney {
+  id: string;
+  total_price: number;
+  transport_price: number;
+  hotel_price: number;
+  outbound: NegotiatorTransportSegment;
+  inbound: NegotiatorTransportSegment;
+  hotel: NegotiatorHotel | null;
+}
+
+export interface NegotiatorAlternative {
+  id: string;
+  kind: "single" | "combination";
+  score: number;
+  new_trip_spec: NegotiatorTripSpec;
+  journey: NegotiatorJourney;
+  [key: string]: unknown;
+}
+
+export interface NegotiationResult {
+  status: "success" | "negotiation_required" | "no_options";
+  trip_spec: NegotiatorTripSpec;
+  journeys: NegotiatorJourney[];
+  alternatives: NegotiatorAlternative[];
+}
+
 export interface TripIntent {
   origin: string;
   destination: string;
@@ -36,7 +95,7 @@ export interface BestTrip {
     id: string;
     name: string;
     checkout_url: string | null;
-  };
+  } | null;
 }
 
 export interface TripTracking {

@@ -9,16 +9,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.engine import NoMatchingTripsError
+from app.negotiator import NegotiationResultInput
 from app.provider import DemoTripOfferProvider, TutuMcpError, TutuMcpProvider
 from app.repository import SQLiteTrackingRepository, TrackingNotFoundError
 from app.schemas import (
     HealthResponse,
     SimulationScenario,
     TrackingListResponse,
-    TripIntent,
     TripTrackingResponse,
 )
-from app.service import InactiveTrackingError, TripTrackingService
+from app.service import (
+    InactiveTrackingError,
+    TrackingRouteMismatchError,
+    TripTrackingService,
+)
 
 
 class Settings(BaseSettings):
@@ -65,8 +69,11 @@ def health(settings: Annotated[Settings, Depends(get_settings)]) -> HealthRespon
 
 
 @app.post("/api/v1/trips", status_code=status.HTTP_201_CREATED)
-def create_tracking(intent: TripIntent, service: ServiceDep) -> TripTrackingResponse:
-    return _run(lambda: service.create(intent))
+def create_tracking(
+    result: NegotiationResultInput,
+    service: ServiceDep,
+) -> TripTrackingResponse:
+    return _run(lambda: service.create_from_negotiation(result))
 
 
 @app.get("/api/v1/trips")
@@ -82,6 +89,15 @@ def get_tracking(tracking_id: UUID, service: ServiceDep) -> TripTrackingResponse
 @app.post("/api/v1/trips/{tracking_id}/refresh")
 def refresh_tracking(tracking_id: UUID, service: ServiceDep) -> TripTrackingResponse:
     return _run(lambda: service.refresh(tracking_id))
+
+@app.post("/api/v1/trips/{tracking_id}/observations")
+def record_negotiation_result(
+    tracking_id: UUID,
+    result: NegotiationResultInput,
+    service: ServiceDep,
+) -> TripTrackingResponse:
+    return _run(lambda: service.record_negotiation(tracking_id, result))
+
 
 
 @app.post("/api/v1/trips/{tracking_id}/simulate")
@@ -105,6 +121,10 @@ def _run[ResultT](operation: Callable[[], ResultT]) -> ResultT:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except InactiveTrackingError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except TrackingRouteMismatchError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
     except NoMatchingTripsError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
